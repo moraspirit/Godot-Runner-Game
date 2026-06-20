@@ -23,6 +23,18 @@ extends Node
 const LANE_SCROLL_SPEED: float = 15.0
 var line_scroll: float = 0.0
 
+# roadside street-name signboards that slide past on the left shoulder
+@onready var env_move_script = preload("res://scripts/env_script.gd")
+var street_names: Array = [
+	"Lagaan", "Girl's Hostel", "Boat Yard", "Civil Dep", "Thunmulla",
+	"Seetha Gangula", "Sumanadasa", "Steel Building", "Basketball Court",
+]
+var sign_index: int = 0
+var sign_timer: Timer = Timer.new()
+var sign_post_mat: StandardMaterial3D
+var sign_board_mat: StandardMaterial3D
+var sign_frame_mat: StandardMaterial3D
+
 # a spread of natural greens so the trees aren't all identical
 # each entry: [foliage base, foliage highlight]
 var tree_greens: Array = [
@@ -59,6 +71,91 @@ func _ready():
 		)
 		z -= 1.5
 		fencez = z
+
+	_setup_signs()
+
+
+func _setup_signs() -> void:
+	sign_post_mat = StandardMaterial3D.new()
+	sign_post_mat.albedo_color = Color(0.28, 0.29, 0.32)
+	sign_post_mat.metallic = 0.55
+	sign_post_mat.roughness = 0.5
+	sign_board_mat = StandardMaterial3D.new()
+	sign_board_mat.albedo_color = Color(0.05, 0.30, 0.13)
+	sign_board_mat.roughness = 0.45
+	sign_board_mat.metallic = 0.1
+	sign_board_mat.emission_enabled = true
+	sign_board_mat.emission = Color(0.04, 0.18, 0.08)
+	sign_board_mat.emission_energy_multiplier = 0.3
+	sign_frame_mat = StandardMaterial3D.new()
+	sign_frame_mat.albedo_color = Color(0.92, 0.93, 0.9)
+	sign_frame_mat.roughness = 0.4
+	sign_frame_mat.emission_enabled = true
+	sign_frame_mat.emission = Color(0.9, 0.92, 0.88)
+	sign_frame_mat.emission_energy_multiplier = 0.18
+
+	sign_timer.name = "sign_timer"
+	sign_timer.wait_time = 2.0
+	sign_timer.autostart = true
+	sign_timer.connect("timeout", Callable(self, "_on_sign_timer"))
+	add_child(sign_timer)
+
+
+func _on_sign_timer() -> void:
+	_spawn_sign(street_names[sign_index])
+	sign_index = (sign_index + 1) % street_names.size()
+	sign_timer.wait_time = randf_range(2.8, 4.2)
+
+
+func _spawn_sign(text: String) -> Node3D:
+	var root := Node3D.new()
+	root.set_script(env_move_script)
+	add_child(root)
+	root.global_transform.origin = Vector3(-4.5, 0.0, startz)
+	root.rotation_degrees.y = 26.0   # angle the face toward the running player
+
+	var post := MeshInstance3D.new()
+	var pm := BoxMesh.new()
+	pm.size = Vector3(0.16, 3.0, 0.16)
+	post.mesh = pm
+	post.material_override = sign_post_mat
+	post.position = Vector3(0.0, 1.5, 0.0)
+	root.add_child(post)
+
+	# white frame slightly behind the green board for a real sign border
+	var frame := MeshInstance3D.new()
+	var fm := BoxMesh.new()
+	fm.size = Vector3(3.95, 1.22, 0.06)
+	frame.mesh = fm
+	frame.material_override = sign_frame_mat
+	frame.position = Vector3(0.0, 3.0, -0.02)
+	root.add_child(frame)
+
+	var board := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(3.7, 0.98, 0.1)
+	board.mesh = bm
+	board.material_override = sign_board_mat
+	board.position = Vector3(0.0, 3.0, 0.0)
+	root.add_child(board)
+
+	var label := Label3D.new()
+	label.text = text
+	label.font_size = 130
+	label.pixel_size = 0.0058
+	label.modulate = Color(1, 1, 1)
+	label.outline_size = 24
+	label.outline_modulate = Color(0.02, 0.1, 0.05)
+	label.width = 640.0
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# shrink long names so they always stay inside the board (~3.4 usable)
+	var approx_w: float = float(text.length()) * label.font_size * label.pixel_size * 0.55
+	if approx_w > 3.4:
+		label.pixel_size *= 3.4 / approx_w
+	label.position = Vector3(0.0, 3.0, 0.06)
+	root.add_child(label)
+	return root
 
 
 func fence_area_body_entered():
