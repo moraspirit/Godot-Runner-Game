@@ -1,6 +1,6 @@
 shader_type spatial;
 
-render_mode world_vertex_coords, depth_draw_alpha_prepass, cull_disabled, vertex_lighting;
+render_mode world_vertex_coords, depth_prepass_alpha, cull_disabled, vertex_lighting;
 
 uniform float CURVATURE;
 uniform bool CURVATURE_ACTIVE;
@@ -11,8 +11,8 @@ uniform vec4 color;
 
 void vertex() {
 	if (CURVATURE_ACTIVE == true) {
-		NORMAL = (WORLD_MATRIX * vec4(VERTEX, 0.0)).xyz;
-		float dist = length(CAMERA_MATRIX[3].xyz - VERTEX) / CURVATURE_DISTANCE;
+		NORMAL = (MODEL_MATRIX * vec4(VERTEX, 0.0)).xyz;
+		float dist = length(INV_VIEW_MATRIX[3].xyz - VERTEX) / CURVATURE_DISTANCE;
 		VERTEX.y -= pow(dist, CURVATURE);
 	}
 }

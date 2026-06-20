@@ -1,24 +1,24 @@
 extends Node
 
 # for coins
-onready var player: KinematicBody = $player_body
-onready var spawn_timer: Timer = $spawn_timer
-onready var spawn_env_timer: Timer = $spawn_env_timer
-onready var spawn_obstacle_timer: Timer = $spawn_obstacle_timer
+@onready var player: CharacterBody3D = $player_body
+@onready var spawn_timer: Timer = $spawn_timer
+@onready var spawn_env_timer: Timer = $spawn_env_timer
+@onready var spawn_obstacle_timer: Timer = $spawn_obstacle_timer
 
-onready var coin: PackedScene = preload("res://scenes/coin.tscn")
+@onready var coin: PackedScene = preload("res://scenes/coin.tscn")
 
-onready var tree1: PackedScene = preload("res://models/cartoon-assets/tree1.tscn")
-onready var tree2: PackedScene = preload("res://models/cartoon-assets/tree2.tscn")
+@onready var tree1: PackedScene = preload("res://models/cartoon-assets/tree1.tscn")
+@onready var tree2: PackedScene = preload("res://models/cartoon-assets/tree2.tscn")
 
-onready var fence: PackedScene = preload("res://models/cartoon-assets/fence.tscn")
-onready var rock:  PackedScene = preload("res://models/cartoon-assets/rock.tscn")
+@onready var fence: PackedScene = preload("res://models/cartoon-assets/fence.tscn")
+@onready var rock:  PackedScene = preload("res://models/cartoon-assets/rock.tscn")
 
 var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
 var tree_startx: Array = [10, -10]
 
-onready var env_assets: Array = [tree1, tree2]
+@onready var env_assets: Array = [tree1, tree2]
 
 const FENCE_COUNT: int = 30
 # example of using object pooling for fences
@@ -31,8 +31,8 @@ func _ready():
 	var y = 0
 	var z = 5
 	for i in FENCE_COUNT:
-		var fence_inst = fence.instance()
-		fence_inst.connect("body_entered", self, "fence_area_body_entered")
+		var fence_inst = fence.instantiate()
+		fence_inst.connect("body_entered", Callable(self, "fence_area_body_entered"))
 		fences.append(fence_inst)
 		add_child(fence_inst)
 		fence_inst.global_transform.origin = Vector3(
@@ -66,9 +66,9 @@ func _on_spawn_timer_timeout():
 				random_line_num = randi() % 3
 		prev_rand_line_n = random_line_num
 
-		for n in rand_range(4, 10):
+		for n in randf_range(4, 10):
 		
-			var coin_inst: MeshInstance = coin.instance()
+			var coin_inst: MeshInstance3D = coin.instantiate()
 	
 			add_child(coin_inst)
 	
@@ -83,15 +83,15 @@ func _on_spawn_env_timer_timeout():
 	randomize()
 	#print("tree spawned")
 	var side: int = tree_startx[randi() % 2]
-	var asset = env_assets[randi() % env_assets.size()].instance()
+	var asset = env_assets[randi() % env_assets.size()].instantiate()
 	add_child(asset)
 	asset.global_transform.origin = Vector3(
 		side,
 		0,
 		startz
 	)
-	asset.rotation_degrees.y = rand_range(0, 360)
-	spawn_env_timer.wait_time = rand_range(1, 2)
+	asset.rotation_degrees.y = randf_range(0, 360)
+	spawn_env_timer.wait_time = randf_range(1, 2)
 
 
 func _on_spawn_obstacle_timer_timeout():
@@ -109,9 +109,9 @@ func _on_spawn_obstacle_timer_timeout():
 				random_line_num = randi() % 3
 		prev_rand_line_n = random_line_num
 
-		var rock_inst = rock.instance()
+		var rock_inst = rock.instantiate()
 # warning-ignore:return_value_discarded
-		rock_inst.connect("player_entered", self, "on_player_entered_rock")
+		rock_inst.connect("player_entered", Callable(self, "on_player_entered_rock"))
 	
 		add_child(rock_inst)
 	
@@ -120,7 +120,7 @@ func _on_spawn_obstacle_timer_timeout():
 			0.0,
 			startz
 		)
-		rock_inst.rotation_degrees.y = rand_range(0, 360)
+		rock_inst.rotation_degrees.y = randf_range(0, 360)
 
 
 func on_player_entered_rock():

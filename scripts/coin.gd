@@ -1,4 +1,4 @@
-extends Spatial
+extends Node3D
 
 var timer: Timer = Timer.new()
 
@@ -6,7 +6,7 @@ func _ready():
 	timer.wait_time = 5
 	timer.autostart = true
 # warning-ignore:return_value_discarded
-	timer.connect("timeout", self, "timer_timeout")
+	timer.connect("timeout", Callable(self, "timer_timeout"))
 	add_child(timer)
 	add_to_group("coins")
 
