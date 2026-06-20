@@ -18,12 +18,13 @@ extends Node
 @onready var rock_mat: Material = preload("res://models/rockmat.tres")
 
 # a spread of natural greens so the trees aren't all identical
+# each entry: [foliage base, foliage highlight]
 var tree_greens: Array = [
-	Vector4(0.05, 0.24, 0.09, 1),   # medium green
-	Vector4(0.03, 0.15, 0.05, 1),   # deep forest
-	Vector4(0.09, 0.28, 0.07, 1),   # sunny yellow-green
-	Vector4(0.04, 0.2, 0.12, 1),    # cool blue-green
-	Vector4(0.12, 0.26, 0.06, 1),   # olive
+	[Color(0.05, 0.24, 0.09), Color(0.12, 0.34, 0.12)],   # medium green
+	[Color(0.03, 0.15, 0.05), Color(0.08, 0.26, 0.09)],   # deep forest
+	[Color(0.09, 0.28, 0.07), Color(0.17, 0.40, 0.11)],   # sunny yellow-green
+	[Color(0.04, 0.20, 0.12), Color(0.10, 0.32, 0.18)],   # cool blue-green
+	[Color(0.12, 0.26, 0.06), Color(0.20, 0.36, 0.10)],   # olive
 ]
 
 var startz: float = -50.0
@@ -94,8 +95,13 @@ func _on_spawn_env_timer_timeout():
 func _spawn_tree(dir: int) -> void:
 	var asset = env_assets[randi() % env_assets.size()].instantiate()
 	add_child(asset)
+	var s: float = randf_range(0.8, 1.6)
+	var greens: Array = tree_greens[randi() % tree_greens.size()]
 	var mat := tree_mat.duplicate() as ShaderMaterial
-	mat.set_shader_parameter("color", tree_greens[randi() % tree_greens.size()])
+	mat.set_shader_parameter("leaf_color", greens[0])
+	mat.set_shader_parameter("leaf_top", greens[1])
+	# the tree mesh stands ~6.5 units tall before scaling
+	mat.set_shader_parameter("tree_height", 6.5 * s)
 	_tint(asset, mat)
 	var x: float = dir * randf_range(7.0, 16.0)
 	asset.global_transform.origin = Vector3(
@@ -104,7 +110,6 @@ func _spawn_tree(dir: int) -> void:
 		startz + randf_range(-3.0, 3.0)
 	)
 	asset.rotation_degrees.y = randf_range(0, 360)
-	var s: float = randf_range(0.8, 1.6)
 	asset.scale = Vector3(s, s, s)
 
 
