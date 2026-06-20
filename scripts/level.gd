@@ -16,6 +16,12 @@ extends Node
 
 @onready var tree_mat: ShaderMaterial = preload("res://models/treemat.tres")
 @onready var rock_mat: Material = preload("res://models/rockmat.tres")
+@onready var line_mat: ShaderMaterial = preload("res://models/linemat.tres")
+
+# how far the dashed lane lines have scrolled; advanced only while running
+# (this _process stops when the tree pauses on game-over, freezing the dashes)
+const LANE_SCROLL_SPEED: float = 15.0
+var line_scroll: float = 0.0
 
 # a spread of natural greens so the trees aren't all identical
 # each entry: [foliage base, foliage highlight]
@@ -156,6 +162,13 @@ func on_player_entered_rock():
 const HIT_Z: float = 0.9      # how close in depth counts as a hit
 const HIT_X: float = 0.9      # must be essentially the same lane (lanes are 2 apart)
 const JUMP_CLEAR_Y: float = 0.8   # player origin.y above this = cleared the rock
+
+func _process(delta: float) -> void:
+	# flow the dashed lane lines toward the player in lock-step with the
+	# obstacles; pausing on game-over halts this _process, freezing the dashes
+	line_scroll += LANE_SCROLL_SPEED * delta
+	line_mat.set_shader_parameter("scroll_offset", line_scroll)
+
 
 func _physics_process(_delta: float) -> void:
 	if player == null or player.is_dead or player.game_over:

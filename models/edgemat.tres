@@ -9,4 +9,3 @@ shader_parameter/CURVATURE = 2.0
 shader_parameter/CURVATURE_DISTANCE = 110.0
 shader_parameter/line_color = Color(0.92, 0.90, 0.80, 1)
 shader_parameter/dashed = false
-shader_parameter/scroll_speed = 0.0

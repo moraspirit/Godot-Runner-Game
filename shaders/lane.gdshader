@@ -7,7 +7,7 @@ uniform vec3 line_color : source_color = vec3(0.86, 0.84, 0.72);
 uniform bool dashed = false;
 uniform float dash_len = 3.0;      // length of one dash + gap cycle
 uniform float dash_fill = 0.45;    // painted fraction of the cycle
-uniform float scroll_speed = 0.0;  // world units/sec the dashes flow toward the player
+uniform float scroll_offset = 0.0; // world units travelled; driven by game logic so it freezes on pause/game-over
 
 varying vec3 wpos;
 
@@ -20,8 +20,9 @@ void vertex() {
 void fragment() {
 	if (dashed) {
 		// scroll the dashes toward the player (+z) so they flow with the
-		// world (obstacles/coins move toward +z at the same speed)
-		float z = wpos.z - TIME * scroll_speed;
+		// world; scroll_offset is advanced by the game only while running,
+		// so the dashes freeze exactly when everything else stops.
+		float z = wpos.z - scroll_offset;
 		float ph = fract(z / dash_len);
 		if (ph > dash_fill) {
 			discard;
