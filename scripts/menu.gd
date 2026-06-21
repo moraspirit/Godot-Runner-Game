@@ -17,8 +17,8 @@ var _login_btn: Button
 var _logout_btn: Button
 var _title_label: Label
 var _subtitle_label: Label
-var _btn_font: int = 32
-var _title_font: int = 78
+var _btn_font: int = 42
+var _title_font: int = 92
 
 
 func _ready() -> void:
@@ -35,9 +35,8 @@ func _ready() -> void:
 
 
 func _apply_responsive_scale() -> void:
-	if BrowserBridge.is_mobile_viewport():
-		_btn_font = 28
-		_title_font = 56
+	_btn_font = BrowserBridge.menu_button_font()
+	_title_font = BrowserBridge.menu_title_font()
 
 
 func _maybe_show_auth() -> void:
@@ -72,7 +71,7 @@ func _build_ui() -> void:
 	_user_label.offset_top = 16
 	_user_label.offset_bottom = 52
 	_user_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_user_label.add_theme_font_size_override("font_size", 18 if BrowserBridge.is_mobile_viewport() else 20)
+	_user_label.add_theme_font_size_override("font_size", BrowserBridge.menu_caption_font())
 	_user_label.add_theme_color_override("font_color", Color(0.75, 0.82, 0.95, 0.9))
 
 	var margin := MarginContainer.new()
@@ -102,14 +101,14 @@ func _build_ui() -> void:
 	_subtitle_label = Label.new()
 	root.add_child(_subtitle_label)
 	_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_subtitle_label.add_theme_font_size_override("font_size", 30 if BrowserBridge.is_mobile_viewport() else 34)
+	_subtitle_label.add_theme_font_size_override("font_size", BrowserBridge.menu_subtitle_font())
 	_subtitle_label.add_theme_color_override("font_color", Color(0.82, 0.9, 1.0))
 	_subtitle_label.text = "Runner"
 
 	var tag := Label.new()
 	root.add_child(tag)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tag.add_theme_font_size_override("font_size", 18 if BrowserBridge.is_mobile_viewport() else 20)
+	tag.add_theme_font_size_override("font_size", BrowserBridge.menu_caption_font())
 	tag.add_theme_color_override("font_color", Color(0.72, 0.78, 0.92, 0.85))
 	tag.text = "28 July Concert"
 
@@ -147,28 +146,33 @@ func _build_settings_panel() -> void:
 	_settings_panel.name = "SettingsPanel"
 	add_child(_settings_panel)
 	_settings_panel.visible = false
-	var panel_w := 320 if BrowserBridge.is_mobile_viewport() else 300
-	_settings_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_settings_panel.offset_left = -panel_w
-	_settings_panel.offset_right = panel_w
-	_settings_panel.offset_top = -340
-	_settings_panel.offset_bottom = 340
+	BrowserBridge.apply_wide_popup(_settings_panel, 0.72)
 	_settings_panel.add_theme_stylebox_override("panel", _overlay_style())
+
+	var margin := MarginContainer.new()
+	_settings_panel.add_child(margin)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
 
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_settings_panel.add_child(scroll)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(scroll)
 
 	_settings_box = VBoxContainer.new()
 	scroll.add_child(_settings_box)
 	_settings_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_settings_box.add_theme_constant_override("separation", 12)
+	_settings_box.custom_minimum_size.x = 0
+	_settings_box.add_theme_constant_override("separation", 14)
 
 	var settings_title := Label.new()
 	_settings_box.add_child(settings_title)
 	settings_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	settings_title.add_theme_font_size_override("font_size", 36)
+	settings_title.add_theme_font_size_override("font_size", BrowserBridge.popup_title_font())
 	settings_title.add_theme_color_override("font_color", Color(1, 0.9, 0.45))
 	settings_title.text = "Settings"
 
@@ -193,9 +197,10 @@ func _build_settings_panel() -> void:
 
 	var close_btn := Button.new()
 	_settings_box.add_child(close_btn)
-	close_btn.custom_minimum_size = Vector2(0, 64)
+	close_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
+	close_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	close_btn.text = "CLOSE"
-	close_btn.add_theme_font_size_override("font_size", 26)
+	close_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
 	close_btn.add_theme_stylebox_override("normal", _pill(Color(0.2, 0.55, 0.85)))
 	close_btn.pressed.connect(_hide_settings)
 
@@ -310,7 +315,7 @@ func _try_show_leaderboard() -> void:
 func _add_menu_button(parent: Control, text: String, col: Color, cb: Callable) -> Button:
 	var btn := Button.new()
 	parent.add_child(btn)
-	var h := 72 if BrowserBridge.is_mobile_viewport() else 80
+	var h := BrowserBridge.menu_button_height()
 	btn.custom_minimum_size = Vector2(0, h)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.add_theme_font_size_override("font_size", _btn_font)
@@ -332,8 +337,8 @@ func _pill(c: Color) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = c
 	sb.set_corner_radius_all(22)
-	sb.content_margin_top = 14
-	sb.content_margin_bottom = 14
+	sb.content_margin_top = 18
+	sb.content_margin_bottom = 18
 	sb.shadow_size = 4
 	sb.shadow_color = Color(0, 0, 0, 0.35)
 	return sb
@@ -358,36 +363,50 @@ func _build_overlay() -> void:
 	_overlay.name = "OverlayPanel"
 	add_child(_overlay)
 	_overlay.visible = false
-	var panel_w := 300 if BrowserBridge.is_mobile_viewport() else 300
-	_overlay.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_overlay.offset_left = -panel_w
-	_overlay.offset_right = panel_w
-	_overlay.offset_top = -260
-	_overlay.offset_bottom = 260
+	BrowserBridge.apply_wide_popup(_overlay, 0.66)
 	_overlay.add_theme_stylebox_override("panel", _overlay_style())
 
+	var margin := MarginContainer.new()
+	_overlay.add_child(margin)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
+
 	var box := VBoxContainer.new()
-	_overlay.add_child(box)
-	box.add_theme_constant_override("separation", 16)
+	margin.add_child(box)
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 18)
 
 	_overlay_title = Label.new()
 	box.add_child(_overlay_title)
 	_overlay_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_overlay_title.add_theme_font_size_override("font_size", 36 if BrowserBridge.is_mobile_viewport() else 40)
+	_overlay_title.add_theme_font_size_override("font_size", BrowserBridge.popup_title_font())
 	_overlay_title.add_theme_color_override("font_color", Color(1, 0.9, 0.45))
 
+	var body_scroll := ScrollContainer.new()
+	box.add_child(body_scroll)
+	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+
 	_overlay_body = Label.new()
-	box.add_child(_overlay_body)
+	body_scroll.add_child(_overlay_body)
+	_overlay_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_overlay_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_overlay_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_overlay_body.add_theme_font_size_override("font_size", 20 if BrowserBridge.is_mobile_viewport() else 22)
+	_overlay_body.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
 	_overlay_body.add_theme_color_override("font_color", Color(0.9, 0.94, 1.0))
 
 	_overlay_close = Button.new()
 	box.add_child(_overlay_close)
-	_overlay_close.custom_minimum_size = Vector2(0, 64)
+	_overlay_close.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
+	_overlay_close.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_overlay_close.text = "CLOSE"
-	_overlay_close.add_theme_font_size_override("font_size", 26)
+	_overlay_close.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
 	_overlay_close.add_theme_stylebox_override("normal", _pill(Color(0.2, 0.55, 0.85)))
 	_overlay_close.pressed.connect(_hide_overlay)
 
@@ -395,13 +414,13 @@ func _build_overlay() -> void:
 func _overlay_style() -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.09, 0.11, 0.17, 0.98)
-	sb.set_corner_radius_all(24)
+	sb.set_corner_radius_all(20)
 	sb.set_border_width_all(2)
 	sb.border_color = Color(1, 0.85, 0.3, 0.45)
-	sb.content_margin_left = 24
-	sb.content_margin_right = 24
-	sb.content_margin_top = 22
-	sb.content_margin_bottom = 22
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
 	return sb
 
 
@@ -410,6 +429,13 @@ func _show_overlay(title: String, body: String) -> void:
 	_overlay_body.text = body
 	_overlay.visible = true
 	get_node("OverlayDim").visible = true
+	call_deferred("_fit_overlay_body")
+
+
+func _fit_overlay_body() -> void:
+	var scroll := _overlay_body.get_parent()
+	if scroll is ScrollContainer and scroll.size.x > 0:
+		_overlay_body.custom_minimum_size.x = scroll.size.x
 
 
 func _hide_overlay() -> void:

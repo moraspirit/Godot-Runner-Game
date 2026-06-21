@@ -86,7 +86,7 @@ func _setup_hud() -> void:
 	layer.add_child(coin_panel)
 	coin_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	coin_panel.position = Vector2(18, 18)
-	coin_panel.size = Vector2(168, 58)
+	coin_panel.size = Vector2(200, 68)
 	coin_panel.add_theme_stylebox_override("panel", _chip_style())
 
 	var coin_icon := Panel.new()
@@ -100,7 +100,7 @@ func _setup_hud() -> void:
 	coin_panel.add_child(coin_label)
 	coin_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	coin_label.position = Vector2(58, 9)
-	coin_label.add_theme_font_size_override("font_size", 30)
+	coin_label.add_theme_font_size_override("font_size", BrowserBridge.hud_font())
 	coin_label.add_theme_color_override("font_color", Color(1, 0.96, 0.78))
 	coin_label.text = "0"
 
@@ -110,10 +110,10 @@ func _setup_hud() -> void:
 	score_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	score_panel.anchor_left = 1.0
 	score_panel.anchor_right = 1.0
-	score_panel.offset_left = -210.0
+	score_panel.offset_left = -240.0
 	score_panel.offset_right = -18.0
 	score_panel.offset_top = 18.0
-	score_panel.offset_bottom = 76.0
+	score_panel.offset_bottom = 86.0
 	score_panel.add_theme_stylebox_override("panel", _chip_style())
 
 	score_label = Label.new()
@@ -122,7 +122,7 @@ func _setup_hud() -> void:
 	score_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	score_label.add_theme_font_size_override("font_size", 28)
+	score_label.add_theme_font_size_override("font_size", BrowserBridge.hud_font() - 2)
 	score_label.add_theme_color_override("font_color", Color(0.85, 0.93, 1.0))
 	score_label.text = "COINS 0"
 
@@ -137,7 +137,7 @@ func _setup_hud() -> void:
 	hint_label.offset_bottom = -40.0
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint_label.add_theme_font_size_override("font_size", 24)
+	hint_label.add_theme_font_size_override("font_size", BrowserBridge.hud_hint_font())
 	hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.92))
 	hint_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	hint_label.add_theme_constant_override("outline_size", 5)
@@ -159,54 +159,59 @@ func _setup_hud() -> void:
 	bg.color = Color(0, 0, 0, 0.66)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var card := Panel.new()
+	var card := PanelContainer.new()
 	overlay.add_child(card)
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.anchor_left = 0.5
-	card.anchor_right = 0.5
-	card.anchor_top = 0.5
-	card.anchor_bottom = 0.5
-	card.offset_left = -220.0
-	card.offset_right = 220.0
-	card.offset_top = -180.0
-	card.offset_bottom = 180.0
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	BrowserBridge.apply_wide_popup(card, 0.48)
 	card.add_theme_stylebox_override("panel", _card_style())
 
+	var margin := MarginContainer.new()
+	card.add_child(margin)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 28)
+	margin.add_theme_constant_override("margin_bottom", 28)
+
+	var box := VBoxContainer.new()
+	margin.add_child(box)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 20)
+
 	var title := Label.new()
-	card.add_child(title)
+	box.add_child(title)
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title.position = Vector2(0, 34)
-	title.size = Vector2(440, 70)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 58)
+	title.add_theme_font_size_override("font_size", BrowserBridge.popup_title_font() + 8)
 	title.add_theme_color_override("font_color", Color(1, 0.32, 0.28))
 	title.text = "GAME OVER"
 
 	result_label = Label.new()
-	card.add_child(result_label)
+	box.add_child(result_label)
 	result_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	result_label.position = Vector2(0, 138)
-	result_label.size = Vector2(440, 50)
 	result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	result_label.add_theme_font_size_override("font_size", 30)
+	result_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	result_label.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font() + 4)
 	result_label.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0))
 	result_label.text = "Score 0     Coins 0"
 
+	box.add_child(_spacer(12))
+
 	var play_again := Button.new()
-	card.add_child(play_again)
-	play_again.position = Vector2(50, 218)
-	play_again.size = Vector2(340, 58)
-	play_again.add_theme_font_size_override("font_size", 26)
+	box.add_child(play_again)
+	play_again.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
+	play_again.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	play_again.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
 	play_again.text = "Play"
 	play_again.add_theme_stylebox_override("normal", _pill_style(Color(0.92, 0.95, 1.0)))
 	play_again.add_theme_color_override("font_color", Color(0.08, 0.1, 0.14))
 	play_again.pressed.connect(_restart)
 
 	var menu_btn := Button.new()
-	card.add_child(menu_btn)
-	menu_btn.position = Vector2(50, 286)
-	menu_btn.size = Vector2(340, 52)
-	menu_btn.add_theme_font_size_override("font_size", 22)
+	box.add_child(menu_btn)
+	menu_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height() - 8)
+	menu_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	menu_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
 	menu_btn.add_theme_color_override("font_color", Color(0.85, 0.72, 0.35))
 	menu_btn.text = "Menu"
 	menu_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.12, 0.14, 0.2)))
@@ -249,12 +254,22 @@ func _circle_style(c: Color) -> StyleBoxFlat:
 func _card_style() -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.07, 0.09, 0.14, 0.97)
-	sb.set_corner_radius_all(28)
+	sb.set_corner_radius_all(20)
 	sb.set_border_width_all(3)
 	sb.border_color = Color(1, 0.35, 0.3, 0.7)
 	sb.shadow_size = 16
 	sb.shadow_color = Color(0, 0, 0, 0.5)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
 	return sb
+
+
+func _spacer(h: int) -> Control:
+	var s := Control.new()
+	s.custom_minimum_size = Vector2(0, h)
+	return s
 
 func _pill_style(c: Color) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
