@@ -68,12 +68,28 @@ var sign_reflector_mat: StandardMaterial3D
 # concert boards spawn further down the road so they pass after the Lagaan sign
 const CONCERT_ROAD_GAP: float = 38.0
 
+var _segment_start_distance: float = 0.0
+var _segment_spawns: Array = []
+var _next_spawn_idx: int = 0
+var _checkpoint_busy: bool = false
+const SPAWN_LEAD: float = 55.0
+
 
 func _ready():
-	randomize()
+	add_to_group("level")
 	_load_nature()
 	_setup_road_segments()
 	_setup_signs()
+
+	if SimConstants.SECURE_SPAWNS:
+		spawn_timer.stop()
+		spawn_obstacle_timer.stop()
+		randomize()
+		if not RunSession.checkpoint_resolved.is_connected(_on_checkpoint_resolved):
+			RunSession.checkpoint_resolved.connect(_on_checkpoint_resolved)
+		call_deferred("_boot_secure_segment")
+	else:
+		randomize()
 
 	var z = 5
 	for i in FENCE_COUNT:
@@ -84,6 +100,111 @@ func _ready():
 		fence_inst.global_transform.origin = Vector3(0, 0, z)
 		z -= 1.5
 		fencez = z
+
+
+func _boot_secure_segment() -> void:
+	if player == null:
+		return
+	RunSession.ensure_segment_for_level(player.current_lane)
+	_init_secure_segment()
+
+
+func get_segment_distance() -> float:
+	return run_distance - _segment_start_distance
+
+
+func _init_secure_segment() -> void:
+	_segment_spawns = SegmentMapGen.generate(RunSession.current_seed)
+	_next_spawn_idx = 0
+	_segment_start_distance = run_distance
+	_checkpoint_busy = false
+	_clear_gameplay_spawns()
+
+
+func _clear_gameplay_spawns() -> void:
+	for n in get_tree().get_nodes_in_group("coins"):
+		if is_instance_valid(n):
+			n.queue_free()
+	for n in get_tree().get_nodes_in_group("rocks"):
+		if is_instance_valid(n):
+			n.queue_free()
+
+
+func _process_secure_spawns() -> void:
+	var d: float = get_segment_distance()
+	while _next_spawn_idx < _segment_spawns.size():
+		var entry: Dictionary = _segment_spawns[_next_spawn_idx]
+		if d + SPAWN_LEAD < float(entry.distance):
+			break
+		_spawn_map_entry(entry)
+		_next_spawn_idx += 1
+
+
+func _spawn_map_entry(entry: Dictionary) -> void:
+	match String(entry.get("kind", "")):
+		"coin":
+			_spawn_seeded_coin(entry)
+		"rock":
+			_spawn_seeded_rock(entry)
+
+
+func _spawn_seeded_coin(entry: Dictionary) -> void:
+	var coin_inst: MeshInstance3D = coin.instantiate()
+	add_child(coin_inst)
+	coin_inst.set_meta("object_id", int(entry.object_id))
+	coin_inst.set_meta("spawn_lane", int(entry.lane))
+	coin_inst.global_transform.origin = Vector3(
+		road_spawnx[int(entry.lane)],
+		1.0,
+		startz
+	)
+
+
+func _spawn_seeded_rock(entry: Dictionary) -> void:
+	if rock_templates.is_empty():
+		return
+	var rng := SeededRng.new(int(entry.object_id) + RunSession.current_seed)
+	var idx: int = rng.randi_mod(rock_templates.size())
+	var mover := _make_mover(rock_templates[idx])
+	mover.add_to_group("rocks")
+	mover.set_meta("object_id", int(entry.object_id))
+	mover.set_meta("spawn_lane", int(entry.lane))
+	add_child(mover)
+	mover.global_transform.origin = Vector3(road_spawnx[int(entry.lane)], 0.0, startz)
+	mover.rotation.y = rng.randf() * TAU
+	var rs: float = rng.randf_range(0.85, 1.1)
+	mover.scale = Vector3(rs, rs * 0.52, rs)
+
+
+func _lane_index_from_x(x: float) -> int:
+	var best: int = 0
+	var best_d: float = INF
+	for i in SimConstants.LANE_X.size():
+		var d: float = absf(x - float(SimConstants.LANE_X[i]))
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
+func _on_checkpoint_resolved(accepted: bool, data: Dictionary) -> void:
+	_checkpoint_busy = false
+	if not accepted:
+		push_warning("Checkpoint rejected: %s" % str(data))
+		return
+	if player == null or player.is_dead or player.game_over:
+		return
+	RunSession.apply_next_segment(player.current_lane)
+	_init_secure_segment()
+
+
+func _try_segment_checkpoint() -> void:
+	if _checkpoint_busy or player == null or player.is_dead or player.game_over:
+		return
+	if get_segment_distance() < SimConstants.SEGMENT_LENGTH:
+		return
+	_checkpoint_busy = true
+	RunSession.submit_checkpoint(get_segment_distance())
 
 
 func _setup_road_segments() -> void:
@@ -650,6 +771,9 @@ func _process(delta: float) -> void:
 	line_mat.set_shader_parameter("scroll_offset", line_scroll)
 	_scroll_road_segments(delta)
 	_update_road_materials()
+	if SimConstants.SECURE_SPAWNS:
+		_process_secure_spawns()
+		_try_segment_checkpoint()
 
 
 func _scroll_road_segments(delta: float) -> void:
@@ -676,5 +800,11 @@ func _physics_process(_delta: float) -> void:
 			continue
 		var rp: Vector3 = r.global_transform.origin
 		if abs(rp.z - pp.z) < HIT_Z and abs(rp.x - pp.x) < HIT_X and pp.y < JUMP_CLEAR_Y:
+			if SimConstants.SECURE_SPAWNS:
+				var oid: int = int(r.get_meta("object_id", -1))
+				var lane: int = int(r.get_meta("spawn_lane", _lane_index_from_x(rp.x)))
+				var dist: float = get_segment_distance()
+				MoveLog.log_collision(oid, lane, dist)
+				RunSession.submit_finish(dist, "collision")
 			player.is_dead = true
 			return

@@ -283,10 +283,17 @@ func _evaluate_swipe(pos: Vector2) -> void:
 		_swiped = true
 
 func _change_lane(dir: int) -> void:
+	var old_lane: int = current_lane
 	current_lane = clampi(current_lane + dir, 0, LANE_X.size() - 1)
+	if old_lane == current_lane:
+		return
+	var level := get_tree().get_first_node_in_group("level")
+	if level and level.has_method("get_segment_distance") and MoveLog.can_log_lane_change():
+		MoveLog.log_lane_change(old_lane, current_lane, level.get_segment_distance())
 
 func _restart() -> void:
 	get_tree().paused = false
+	RunSession.restart_run()
 	get_tree().reload_current_scene()
 
 
@@ -328,6 +335,9 @@ func _physics_process(delta: float) -> void:
 	if on_ground and jump_requested:
 		vertical_velocity = JUMP_FORCE
 		is_jumping = true
+		var level := get_tree().get_first_node_in_group("level")
+		if level and level.has_method("get_segment_distance"):
+			MoveLog.log_jump_start(level.get_segment_distance())
 		if jump_anim != "":
 			anim_player.play(jump_anim)
 	jump_requested = false
@@ -340,6 +350,9 @@ func _physics_process(delta: float) -> void:
 		vertical_velocity = 0.0
 		if is_jumping:
 			is_jumping = false
+			var level := get_tree().get_first_node_in_group("level")
+			if level and level.has_method("get_segment_distance"):
+				MoveLog.log_jump_land(level.get_segment_distance())
 			_play_run()
 
 	global_transform.origin = pos
@@ -376,6 +389,11 @@ func _on_collision_area_entered(area):
 		audio_player.play()
 		coin_count += 1
 		coin_label.text = str(coin_count)
+		var level := get_tree().get_first_node_in_group("level")
+		if level and level.has_method("get_segment_distance"):
+			var oid: int = int(parent.get_meta("object_id", -1))
+			var lane: int = int(parent.get_meta("spawn_lane", current_lane))
+			MoveLog.log_coin(oid, lane, level.get_segment_distance())
 		# little pop on the counter for feedback
 		coin_label.pivot_offset = coin_label.size * 0.5
 		var t := create_tween()

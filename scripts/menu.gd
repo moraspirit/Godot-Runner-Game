@@ -7,6 +7,7 @@ var _overlay_title: Label
 var _overlay_body: Label
 var _overlay_close: Button
 var _sound_btn: Button
+var _play_btn: Button
 
 
 func _ready() -> void:
@@ -68,7 +69,7 @@ func _build_ui() -> void:
 
 	root.add_child(_spacer(12))
 
-	_add_menu_button(root, "PLAY", Color(0.16, 0.72, 0.4), _on_play)
+	_play_btn = _add_menu_button(root, "PLAY", Color(0.16, 0.72, 0.4), _on_play)
 	_add_menu_button(root, "BUY TICKET", Color(0.72, 0.48, 0.1), _on_buy_ticket)
 	_add_menu_button(root, "HOW TO PLAY", Color(0.22, 0.38, 0.72), func(): _show_overlay(
 		"How to Play",
@@ -200,7 +201,23 @@ func _refresh_sound_label() -> void:
 
 
 func _on_play() -> void:
-	get_tree().change_scene_to_file("res://scenes/level.tscn")
+	if _play_btn:
+		_play_btn.disabled = true
+		_play_btn.text = "LOADING..."
+	if RunSession.run_ready.is_connected(_on_run_ready):
+		RunSession.run_ready.disconnect(_on_run_ready)
+	RunSession.run_ready.connect(_on_run_ready, CONNECT_ONE_SHOT)
+	RunSession.prepare_run()
+
+
+func _on_run_ready(success: bool, error_message: String) -> void:
+	if _play_btn:
+		_play_btn.disabled = false
+		_play_btn.text = "PLAY"
+	if success:
+		get_tree().change_scene_to_file("res://scenes/level.tscn")
+	else:
+		_show_overlay("Could not start", error_message if error_message != "" else "Try again later.")
 
 
 func _on_buy_ticket() -> void:

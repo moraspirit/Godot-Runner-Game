@@ -1,0 +1,188 @@
+extends Node
+
+signal run_ready(success: bool, error_message: String)
+signal checkpoint_resolved(accepted: bool, data: Dictionary)
+
+var session_id: String = ""
+var signing_secret: PackedByteArray = PackedByteArray()
+var run_id: String = ""
+var segment_index: int = 0
+var current_seed: int = 0
+var verified_score: int = 0
+var offline_mode: bool = true
+var run_active: bool = false
+
+var _waiting_checkpoint: bool = false
+
+
+func _ready() -> void:
+	offline_mode = SimConstants.API_BASE.is_empty()
+	if not offline_mode:
+		ApiClient.request_finished.connect(_on_api_response)
+
+
+func has_session() -> bool:
+	return session_id != "" and signing_secret.size() > 0
+
+
+func prepare_run() -> void:
+	if offline_mode:
+		_start_offline_run("")
+		return
+	_start_online_run()
+
+
+func prepare_run_after_restart() -> void:
+	restart_run()
+
+
+func restart_run() -> void:
+	if offline_mode or SimConstants.API_BASE.is_empty():
+		_start_offline_run("")
+		return
+	run_active = false
+	_start_online_run()
+
+
+func _start_offline_run(error_hint: String) -> void:
+	offline_mode = true
+	session_id = _random_id()
+	signing_secret = _random_secret()
+	run_id = _random_id()
+	segment_index = 0
+	current_seed = _random_segment_seed()
+	verified_score = 0
+	run_active = true
+	if error_hint != "":
+		push_warning("Secure run: offline fallback — %s" % error_hint)
+	run_ready.emit(true, error_hint)
+
+
+func _start_online_run() -> void:
+	run_active = false
+	ApiClient.post_signed("/v1/session/start", {})
+
+
+func _begin_online_run() -> void:
+	ApiClient.post_signed("/v1/run/start", {})
+
+
+func ensure_segment_for_level(initial_lane: int) -> void:
+	if not run_active:
+		_start_offline_run("level started without active run")
+	MoveLog.reset(segment_index, current_seed, initial_lane)
+
+
+func advance_offline_segment(payload: Dictionary) -> void:
+	print("[RunSession] checkpoint (offline): ", JSON.stringify(payload))
+	segment_index += 1
+	current_seed = _random_segment_seed()
+	verified_score += _estimate_segment_score(payload)
+	checkpoint_resolved.emit(true, {
+		"accepted": true,
+		"next_seed": current_seed,
+		"next_segment_index": segment_index,
+		"segment_score": _estimate_segment_score(payload),
+		"run_total_score": verified_score,
+	})
+
+
+func submit_checkpoint(final_distance: float) -> void:
+	if _waiting_checkpoint:
+		return
+	var payload := MoveLog.to_dict("segment_complete", final_distance)
+	if offline_mode:
+		advance_offline_segment(payload)
+		return
+	_waiting_checkpoint = true
+	ApiClient.post_signed("/v1/run/checkpoint", {
+		"run_id": run_id,
+		"move_log": payload,
+	})
+
+
+func submit_finish(final_distance: float, end_reason: String = "collision") -> void:
+	var payload := MoveLog.to_dict(end_reason, final_distance)
+	if offline_mode:
+		print("[RunSession] finish (offline): ", JSON.stringify(payload))
+		run_active = false
+		return
+	ApiClient.post_signed("/v1/run/finish", {
+		"run_id": run_id,
+		"move_log": payload,
+	})
+
+
+func apply_next_segment(initial_lane: int) -> void:
+	MoveLog.reset(segment_index, current_seed, initial_lane)
+
+
+func _on_api_response(path: String, success: bool, status: int, body: Dictionary) -> void:
+	if path == "/v1/session/start":
+		if success:
+			session_id = str(body.get("session_id", ""))
+			signing_secret = Marshalls.base64_to_raw(str(body.get("signing_secret", "")))
+			_begin_online_run()
+		elif SimConstants.OFFLINE_FALLBACK:
+			_start_offline_run("session/start HTTP %d" % status)
+		else:
+			run_ready.emit(false, "Could not start session (%d)" % status)
+		return
+
+	if path == "/v1/run/start":
+		if success:
+			run_id = str(body.get("run_id", ""))
+			segment_index = int(body.get("segment_index", 0))
+			current_seed = int(body.get("seed", _random_segment_seed()))
+			verified_score = 0
+			run_active = true
+			offline_mode = false
+			run_ready.emit(true, "")
+		elif SimConstants.OFFLINE_FALLBACK:
+			_start_offline_run("run/start HTTP %d" % status)
+		else:
+			run_ready.emit(false, "Could not start run (%d)" % status)
+		return
+
+	if path == "/v1/run/checkpoint":
+		_waiting_checkpoint = false
+		if success and body.get("accepted", false):
+			verified_score = int(body.get("run_total_score", verified_score))
+			segment_index = int(body.get("next_segment_index", segment_index + 1))
+			current_seed = int(body.get("next_seed", _random_segment_seed()))
+			checkpoint_resolved.emit(true, body)
+		else:
+			checkpoint_resolved.emit(false, body)
+		return
+
+	if path == "/v1/run/finish":
+		if success:
+			verified_score = int(body.get("final_score", verified_score))
+		run_active = false
+
+
+func _estimate_segment_score(payload: Dictionary) -> int:
+	var dist: float = float(payload.get("final_distance", 0.0))
+	var coins: int = 0
+	for e in payload.get("events", []):
+		if e is Dictionary and e.get("kind", "") == "coin":
+			coins += 1
+	return int(dist * SimConstants.DISTANCE_SCORE_PER_UNIT) + coins * SimConstants.COIN_SCORE
+
+
+func _random_segment_seed() -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	return rng.randi_range(10000, 99999)
+
+
+func _random_id() -> String:
+	return "%d-%d" % [Time.get_ticks_usec(), randi()]
+
+
+func _random_secret() -> PackedByteArray:
+	var buf := PackedByteArray()
+	buf.resize(32)
+	for i in 32:
+		buf[i] = randi() % 256
+	return buf
