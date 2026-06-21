@@ -293,8 +293,19 @@ func _change_lane(dir: int) -> void:
 
 func _restart() -> void:
 	get_tree().paused = false
+	if SimConstants.API_BASE.is_empty():
+		RunSession.restart_run()
+		get_tree().reload_current_scene()
+		return
+	if RunSession.run_ready.is_connected(_on_restart_run_ready):
+		RunSession.run_ready.disconnect(_on_restart_run_ready)
+	RunSession.run_ready.connect(_on_restart_run_ready, CONNECT_ONE_SHOT)
 	RunSession.restart_run()
-	get_tree().reload_current_scene()
+
+
+func _on_restart_run_ready(success: bool, _error_message: String) -> void:
+	if success:
+		get_tree().reload_current_scene()
 
 
 func _go_menu() -> void:
@@ -393,7 +404,8 @@ func _on_collision_area_entered(area):
 		if level and level.has_method("get_segment_distance"):
 			var oid: int = int(parent.get_meta("object_id", -1))
 			var lane: int = int(parent.get_meta("spawn_lane", current_lane))
-			MoveLog.log_coin(oid, lane, level.get_segment_distance())
+			var dist: float = float(parent.get_meta("map_distance", level.get_segment_distance()))
+			MoveLog.log_coin(oid, lane, dist)
 		# little pop on the counter for feedback
 		coin_label.pivot_offset = coin_label.size * 0.5
 		var t := create_tween()

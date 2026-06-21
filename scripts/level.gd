@@ -72,7 +72,6 @@ var _segment_start_distance: float = 0.0
 var _segment_spawns: Array = []
 var _next_spawn_idx: int = 0
 var _checkpoint_busy: bool = false
-const SPAWN_LEAD: float = 55.0
 
 
 func _ready():
@@ -134,7 +133,7 @@ func _process_secure_spawns() -> void:
 	var d: float = get_segment_distance()
 	while _next_spawn_idx < _segment_spawns.size():
 		var entry: Dictionary = _segment_spawns[_next_spawn_idx]
-		if d + SPAWN_LEAD < float(entry.distance):
+		if d + SimConstants.SPAWN_LEAD < float(entry.distance):
 			break
 		_spawn_map_entry(entry)
 		_next_spawn_idx += 1
@@ -153,6 +152,7 @@ func _spawn_seeded_coin(entry: Dictionary) -> void:
 	add_child(coin_inst)
 	coin_inst.set_meta("object_id", int(entry.object_id))
 	coin_inst.set_meta("spawn_lane", int(entry.lane))
+	coin_inst.set_meta("map_distance", float(entry.distance))
 	coin_inst.global_transform.origin = Vector3(
 		road_spawnx[int(entry.lane)],
 		1.0,
@@ -169,6 +169,7 @@ func _spawn_seeded_rock(entry: Dictionary) -> void:
 	mover.add_to_group("rocks")
 	mover.set_meta("object_id", int(entry.object_id))
 	mover.set_meta("spawn_lane", int(entry.lane))
+	mover.set_meta("map_distance", float(entry.distance))
 	add_child(mover)
 	mover.global_transform.origin = Vector3(road_spawnx[int(entry.lane)], 0.0, startz)
 	mover.rotation.y = rng.randf() * TAU
@@ -803,7 +804,7 @@ func _physics_process(_delta: float) -> void:
 			if SimConstants.SECURE_SPAWNS:
 				var oid: int = int(r.get_meta("object_id", -1))
 				var lane: int = int(r.get_meta("spawn_lane", _lane_index_from_x(rp.x)))
-				var dist: float = get_segment_distance()
+				var dist: float = float(r.get_meta("map_distance", get_segment_distance()))
 				MoveLog.log_collision(oid, lane, dist)
 				RunSession.submit_finish(dist, "collision")
 			player.is_dead = true
