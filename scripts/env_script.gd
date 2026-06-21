@@ -6,7 +6,7 @@ signal player_entered
 
 
 func _ready():
-	timer.wait_time = 5
+	timer.wait_time = float(get_meta("lifetime", 8.0))
 	timer.autostart = true
 # warning-ignore:return_value_discarded
 	timer.connect("timeout", Callable(self, "timer_timeout"))

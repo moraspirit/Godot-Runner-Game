@@ -9,12 +9,12 @@ extends Node
 @onready var fence: PackedScene = preload("res://models/cartoon-assets/fence.tscn")
 
 @onready var line_mat: ShaderMaterial = preload("res://models/linemat.tres")
+@onready var asphalt_mat: Material = preload("res://models/road_asphalt.tres")
+@onready var black_road_mat: Material = preload("res://models/road_black.tres")
+@onready var carpet_mat: Material = preload("res://models/road_carpet.tres")
 
-# moves a spawned prop toward the player and frees it once it passes by
 @onready var env_move_script = preload("res://scripts/env_script.gd")
 
-# Stylized CC0 nature kit (Quaternius). Each .glb is a row of variants, so at
-# load time we split them into individual reusable mesh "templates".
 const NATURE_TREES: Array = [
 	"res://models/nature/Trees.glb",
 	"res://models/nature/PineTrees.glb",
@@ -33,13 +33,13 @@ var tree_templates: Array = []
 var shrub_templates: Array = []
 var rock_templates: Array = []
 
-# avoid showing the same model twice in a row so repetition isn't obvious
 var _last_tree: int = -1
 var _last_rock: int = -1
 
-# how far the dashed lane lines have scrolled; advanced only while running
 const LANE_SCROLL_SPEED: float = 15.0
 var line_scroll: float = 0.0
+var run_distance: float = 0.0
+const KM_LENGTH: float = 1000.0
 
 var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
@@ -48,10 +48,32 @@ const FENCE_COUNT: int = 30
 var fences: Array = []
 var fencez: float = 0.0
 
+# scrolling road strips — material set by 1 km zones (see _road_material_for_distance)
+const ROAD_SEGMENT_LEN: float = 5.0
+const ROAD_SEGMENT_COUNT: int = 28
+var road_segments: Array = []
+
+# roadside street-name boards
+var street_names: Array = [
+	"Lagaan", "Girl's Hostel", "Boat Yard", "Civil Dep", "Thunmulla",
+	"Seetha Gangula", "Sumanadasa", "Steel Building", "Basketball Court",
+]
+var sign_index: int = 0
+var sign_timer: Timer
+var sign_post_mat: StandardMaterial3D
+var sign_pole_mat: StandardMaterial3D
+var sign_frame_mat: StandardMaterial3D
+var sign_reflector_mat: StandardMaterial3D
+
+# concert boards spawn further down the road so they pass after the Lagaan sign
+const CONCERT_ROAD_GAP: float = 38.0
+
 
 func _ready():
 	randomize()
 	_load_nature()
+	_setup_road_segments()
+	_setup_signs()
 
 	var z = 5
 	for i in FENCE_COUNT:
@@ -64,12 +86,407 @@ func _ready():
 		fencez = z
 
 
-# Split each nature .glb (a row of 3-5 variants) into single mesh templates we
-# can cheaply duplicate at spawn time.
+func _setup_road_segments() -> void:
+	var z: float = -ROAD_SEGMENT_LEN * ROAD_SEGMENT_COUNT * 0.5
+	for i in ROAD_SEGMENT_COUNT:
+		var seg := MeshInstance3D.new()
+		seg.name = "road_seg_%d" % i
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(6.4, ROAD_SEGMENT_LEN)
+		seg.mesh = pm
+		seg.material_override = asphalt_mat
+		seg.position = Vector3(0.0, 0.02, z)
+		add_child(seg)
+		road_segments.append(seg)
+		z += ROAD_SEGMENT_LEN
+
+
+func _setup_signs() -> void:
+	sign_pole_mat = StandardMaterial3D.new()
+	sign_pole_mat.albedo_color = Color(0.42, 0.44, 0.48)
+	sign_pole_mat.metallic = 0.72
+	sign_pole_mat.roughness = 0.38
+
+	sign_post_mat = StandardMaterial3D.new()
+	sign_post_mat.albedo_color = Color(0.04, 0.22, 0.12)
+	sign_post_mat.roughness = 0.55
+	sign_post_mat.metallic = 0.08
+
+	sign_frame_mat = StandardMaterial3D.new()
+	sign_frame_mat.albedo_color = Color(0.94, 0.95, 0.93)
+	sign_frame_mat.roughness = 0.35
+	sign_frame_mat.metallic = 0.15
+
+	sign_reflector_mat = StandardMaterial3D.new()
+	sign_reflector_mat.albedo_color = Color(0.95, 0.78, 0.12)
+	sign_reflector_mat.emission_enabled = true
+	sign_reflector_mat.emission = Color(0.9, 0.7, 0.1)
+	sign_reflector_mat.emission_energy_multiplier = 0.35
+	sign_reflector_mat.metallic = 0.4
+	sign_reflector_mat.roughness = 0.25
+
+	sign_timer = Timer.new()
+	sign_timer.name = "sign_timer"
+	sign_timer.wait_time = 8.0
+	sign_timer.autostart = true
+	sign_timer.timeout.connect(_on_sign_timer)
+	add_child(sign_timer)
+
+
+func _on_sign_timer() -> void:
+	var name: String = street_names[sign_index]
+	if name == "Lagaan":
+		_spawn_sign("Lagaan")
+		_spawn_concert_boards()
+		sign_index = (sign_index + 1) % street_names.size()
+		var concert_z: float = startz - CONCERT_ROAD_GAP
+		var concert_travel: float = abs(concert_z) / LANE_SCROLL_SPEED
+		sign_timer.wait_time = concert_travel + 4.0
+		return
+	_spawn_sign(name)
+	sign_index = (sign_index + 1) % street_names.size()
+	sign_timer.wait_time = randf_range(7.5, 11.0)
+
+
+func _spawn_concert_boards() -> void:
+	var z_pos: float = startz - CONCERT_ROAD_GAP
+	_spawn_epilogue_arch(z_pos)
+	_spawn_concert_side(-5.5, z_pos, "CONCERT", "28 JULY", 22.0, 14.0)
+	_spawn_concert_side(5.5, z_pos, "LIVE MUSIC", "28 JULY", -22.0, 14.0)
+
+
+func _spawn_epilogue_arch(z: float) -> void:
+	# decorative gateway over the road — no collision, the boy runs straight under it
+	var root := Node3D.new()
+	root.set_script(env_move_script)
+	root.set_meta("lifetime", 14.0)
+	add_child(root)
+	root.global_transform.origin = Vector3(0.0, 0.0, z)
+
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = Color(0.95, 0.78, 0.18)
+	gold.metallic = 0.65
+	gold.roughness = 0.28
+	gold.emission_enabled = true
+	gold.emission = Color(0.85, 0.62, 0.08)
+	gold.emission_energy_multiplier = 0.4
+
+	var banner := StandardMaterial3D.new()
+	banner.albedo_color = Color(0.42, 0.07, 0.52)
+	banner.emission_enabled = true
+	banner.emission = Color(0.32, 0.04, 0.4)
+	banner.emission_energy_multiplier = 0.5
+	banner.roughness = 0.42
+
+	var accent := StandardMaterial3D.new()
+	accent.albedo_color = Color(0.9, 0.2, 0.36)
+	accent.emission_enabled = true
+	accent.emission = Color(0.7, 0.1, 0.26)
+	accent.emission_energy_multiplier = 0.45
+
+	const POST_X: float = 3.45
+	const POST_H: float = 3.65
+	const BEAM_Y: float = 3.72
+
+	for side_x in [-POST_X, POST_X]:
+		var post := MeshInstance3D.new()
+		var pm := BoxMesh.new()
+		pm.size = Vector3(0.28, POST_H, 0.28)
+		post.mesh = pm
+		post.material_override = sign_pole_mat
+		post.position = Vector3(side_x, POST_H * 0.5, 0.0)
+		root.add_child(post)
+
+		var cap := MeshInstance3D.new()
+		var cm := BoxMesh.new()
+		cm.size = Vector3(0.42, 0.18, 0.42)
+		cap.mesh = cm
+		cap.material_override = gold
+		cap.position = Vector3(side_x, POST_H + 0.06, 0.0)
+		root.add_child(cap)
+
+	var beam := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(7.35, 0.32, 0.34)
+	beam.mesh = bm
+	beam.material_override = gold
+	beam.position = Vector3(0.0, BEAM_Y, 0.0)
+	root.add_child(beam)
+
+	var sign_panel := MeshInstance3D.new()
+	var sm := BoxMesh.new()
+	sm.size = Vector3(6.8, 1.15, 0.1)
+	sign_panel.mesh = sm
+	sign_panel.material_override = banner
+	sign_panel.position = Vector3(0.0, BEAM_Y + 0.72, 0.0)
+	root.add_child(sign_panel)
+
+	var sign_frame := MeshInstance3D.new()
+	var fm := BoxMesh.new()
+	fm.size = Vector3(7.05, 1.38, 0.07)
+	sign_frame.mesh = fm
+	sign_frame.material_override = gold
+	sign_frame.position = Vector3(0.0, BEAM_Y + 0.72, -0.03)
+	root.add_child(sign_frame)
+
+	for i in range(9):
+		var bulb := MeshInstance3D.new()
+		var bulb_mesh := SphereMesh.new()
+		bulb_mesh.radius = 0.065
+		bulb_mesh.height = 0.13
+		bulb.mesh = bulb_mesh
+		var bulb_mat := StandardMaterial3D.new()
+		bulb_mat.albedo_color = Color(1.0, 0.9, 0.4) if i % 2 == 0 else Color(0.5, 0.82, 1.0)
+		bulb_mat.emission_enabled = true
+		bulb_mat.emission = bulb_mat.albedo_color
+		bulb_mat.emission_energy_multiplier = 1.15
+		bulb.material_override = bulb_mat
+		bulb.position = Vector3(-3.2 + i * 0.8, BEAM_Y - 0.12, 0.0)
+		root.add_child(bulb)
+
+	var ribbon := MeshInstance3D.new()
+	var rm := BoxMesh.new()
+	rm.size = Vector3(7.1, 0.14, 0.06)
+	ribbon.mesh = rm
+	ribbon.material_override = accent
+	ribbon.position = Vector3(0.0, BEAM_Y + 1.38, 0.05)
+	root.add_child(ribbon)
+
+	var title := Label3D.new()
+	title.text = "EPILOGUE"
+	title.font_size = 130
+	title.pixel_size = 0.0054
+	title.modulate = Color(1, 1, 1)
+	title.outline_size = 18
+	title.outline_modulate = Color(0.12, 0.02, 0.18)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector3(0.0, BEAM_Y + 0.72, 0.12)
+	root.add_child(title)
+
+	var subtitle := Label3D.new()
+	subtitle.text = "28 JULY"
+	subtitle.font_size = 72
+	subtitle.pixel_size = 0.004
+	subtitle.modulate = Color(1.0, 0.88, 0.32)
+	subtitle.outline_size = 10
+	subtitle.outline_modulate = Color(0.15, 0.04, 0.22)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.position = Vector3(0.0, BEAM_Y + 0.38, 0.1)
+	root.add_child(subtitle)
+
+
+func _spawn_concert_side(x: float, z: float, title: String, date_line: String, rot_y: float, lifetime: float) -> void:
+	var root := Node3D.new()
+	root.set_script(env_move_script)
+	root.set_meta("lifetime", lifetime)
+	add_child(root)
+	root.global_transform.origin = Vector3(x, 0.0, z)
+	_add_concert_sign(root, title, date_line, rot_y)
+
+
+func _spawn_sign(text: String) -> Node3D:
+	var root := Node3D.new()
+	root.set_script(env_move_script)
+	root.set_meta("lifetime", 10.0)
+	add_child(root)
+	root.global_transform.origin = Vector3(-5.2, 0.0, startz)
+	_add_street_sign(root, text, Vector3.ZERO, 22.0)
+	return root
+
+
+func _add_street_sign(root: Node3D, text: String, pos: Vector3, rot_y: float) -> void:
+	var mount := Node3D.new()
+	mount.position = pos
+	mount.rotation_degrees.y = rot_y
+	root.add_child(mount)
+	var pole := MeshInstance3D.new()
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = 0.055
+	pole_mesh.bottom_radius = 0.07
+	pole_mesh.height = 3.35
+	pole.mesh = pole_mesh
+	pole.material_override = sign_pole_mat
+	pole.position = Vector3(0.0, 1.675, 0.0)
+	mount.add_child(pole)
+
+	# base plate
+	var base := MeshInstance3D.new()
+	var base_mesh := CylinderMesh.new()
+	base_mesh.top_radius = 0.22
+	base_mesh.bottom_radius = 0.26
+	base_mesh.height = 0.08
+	base.mesh = base_mesh
+	base.material_override = sign_pole_mat
+	base.position = Vector3(0.0, 0.04, 0.0)
+	mount.add_child(base)
+
+	# yellow reflector strip on pole (real roadside detail)
+	var reflector := MeshInstance3D.new()
+	var ref_mesh := BoxMesh.new()
+	ref_mesh.size = Vector3(0.14, 0.22, 0.04)
+	reflector.mesh = ref_mesh
+	reflector.material_override = sign_reflector_mat
+	reflector.position = Vector3(0.08, 0.55, 0.0)
+	mount.add_child(reflector)
+
+	# white outer frame
+	var frame := MeshInstance3D.new()
+	var frame_mesh := BoxMesh.new()
+	frame_mesh.size = Vector3(3.85, 1.05, 0.07)
+	frame.mesh = frame_mesh
+	frame.material_override = sign_frame_mat
+	frame.position = Vector3(0.0, 3.15, 0.0)
+	mount.add_child(frame)
+
+	# green sign face
+	var board := MeshInstance3D.new()
+	var board_mesh := BoxMesh.new()
+	board_mesh.size = Vector3(3.55, 0.82, 0.09)
+	board.mesh = board_mesh
+	board.material_override = sign_post_mat
+	board.position = Vector3(0.0, 3.15, 0.02)
+	mount.add_child(board)
+
+	var label := Label3D.new()
+	label.text = text.to_upper()
+	label.font_size = 120
+	label.pixel_size = 0.0055
+	label.modulate = Color(1, 1, 1)
+	label.outline_size = 18
+	label.outline_modulate = Color(0.02, 0.08, 0.05)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var approx_w: float = float(text.length()) * label.font_size * label.pixel_size * 0.58
+	if approx_w > 3.2:
+		label.pixel_size *= 3.2 / approx_w
+	label.position = Vector3(0.0, 3.15, 0.08)
+	mount.add_child(label)
+
+
+func _add_concert_sign(root: Node3D, title: String, date_line: String, rot_y: float) -> void:
+	root.rotation_degrees.y = rot_y
+
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = Color(0.95, 0.78, 0.18)
+	gold.metallic = 0.65
+	gold.roughness = 0.28
+	gold.emission_enabled = true
+	gold.emission = Color(0.85, 0.62, 0.08)
+	gold.emission_energy_multiplier = 0.45
+
+	var banner := StandardMaterial3D.new()
+	banner.albedo_color = Color(0.45, 0.08, 0.55)
+	banner.emission_enabled = true
+	banner.emission = Color(0.35, 0.05, 0.42)
+	banner.emission_energy_multiplier = 0.55
+	banner.roughness = 0.4
+
+	var accent := StandardMaterial3D.new()
+	accent.albedo_color = Color(0.92, 0.22, 0.38)
+	accent.emission_enabled = true
+	accent.emission = Color(0.75, 0.12, 0.28)
+	accent.emission_energy_multiplier = 0.5
+
+	var pole := MeshInstance3D.new()
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = 0.06
+	pole_mesh.bottom_radius = 0.08
+	pole_mesh.height = 4.1
+	pole.mesh = pole_mesh
+	pole.material_override = sign_pole_mat
+	pole.position = Vector3(0.0, 2.05, 0.0)
+	root.add_child(pole)
+
+	var base := MeshInstance3D.new()
+	var base_mesh := CylinderMesh.new()
+	base_mesh.top_radius = 0.28
+	base_mesh.bottom_radius = 0.34
+	base_mesh.height = 0.1
+	base.mesh = base_mesh
+	base.material_override = gold
+	base.position = Vector3(0.0, 0.05, 0.0)
+	root.add_child(base)
+
+	for i in range(5):
+		var flag := MeshInstance3D.new()
+		var fm := BoxMesh.new()
+		fm.size = Vector3(0.55, 0.38, 0.03)
+		flag.mesh = fm
+		flag.material_override = gold if i % 2 == 0 else accent
+		flag.position = Vector3(-1.1 + i * 0.55, 4.35, 0.0)
+		flag.rotation_degrees.z = -18.0 if i % 2 == 0 else 18.0
+		root.add_child(flag)
+
+	for i in range(7):
+		var bulb := MeshInstance3D.new()
+		var bm := SphereMesh.new()
+		bm.radius = 0.07
+		bm.height = 0.14
+		bulb.mesh = bm
+		var bulb_mat := StandardMaterial3D.new()
+		bulb_mat.albedo_color = Color(1.0, 0.92, 0.45) if i % 2 == 0 else Color(0.55, 0.85, 1.0)
+		bulb_mat.emission_enabled = true
+		bulb_mat.emission = bulb_mat.albedo_color
+		bulb_mat.emission_energy_multiplier = 1.2
+		bulb.material_override = bulb_mat
+		bulb.position = Vector3(-1.5 + i * 0.5, 4.05, 0.12)
+		root.add_child(bulb)
+
+	var frame := MeshInstance3D.new()
+	var frame_mesh := BoxMesh.new()
+	frame_mesh.size = Vector3(4.35, 1.35, 0.08)
+	frame.mesh = frame_mesh
+	frame.material_override = gold
+	frame.position = Vector3(0.0, 3.55, 0.0)
+	root.add_child(frame)
+
+	var board := MeshInstance3D.new()
+	var board_mesh := BoxMesh.new()
+	board_mesh.size = Vector3(4.05, 1.05, 0.1)
+	board.mesh = board_mesh
+	board.material_override = banner
+	board.position = Vector3(0.0, 3.55, 0.02)
+	root.add_child(board)
+
+	for side in [-1, 1]:
+		var ribbon := MeshInstance3D.new()
+		var rm := BoxMesh.new()
+		rm.size = Vector3(0.18, 1.2, 0.04)
+		ribbon.mesh = rm
+		ribbon.material_override = accent
+		ribbon.position = Vector3(side * 2.18, 3.55, 0.04)
+		root.add_child(ribbon)
+
+	var title_label := Label3D.new()
+	title_label.text = title.to_upper()
+	title_label.font_size = 100
+	title_label.pixel_size = 0.005
+	title_label.modulate = Color(1, 1, 1)
+	title_label.outline_size = 16
+	title_label.outline_modulate = Color(0.15, 0.02, 0.2)
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.position = Vector3(0.0, 3.62, 0.1)
+	root.add_child(title_label)
+
+	var date_label := Label3D.new()
+	date_label.text = date_line.to_upper()
+	date_label.font_size = 88
+	date_label.pixel_size = 0.0046
+	date_label.modulate = Color(1.0, 0.88, 0.35)
+	date_label.outline_size = 14
+	date_label.outline_modulate = Color(0.2, 0.05, 0.3)
+	date_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	date_label.position = Vector3(0.0, 3.28, 0.1)
+	root.add_child(date_label)
+
+
 func _load_nature() -> void:
 	_collect(NATURE_TREES, tree_templates)
 	_collect(NATURE_SHRUBS, shrub_templates)
 	_collect(NATURE_ROCKS, rock_templates)
+	# medium-sized rocks — visible on the road but still jumpable
+	rock_templates = rock_templates.filter(func(t: MeshInstance3D) -> bool:
+		return t.get_meta("height", 99.0) <= 1.25
+	)
 
 
 func _collect(paths: Array, into: Array) -> void:
@@ -77,8 +494,6 @@ func _collect(paths: Array, into: Array) -> void:
 		if not ResourceLoader.exists(p):
 			continue
 		var inst: Node = (load(p) as PackedScene).instantiate()
-		# add to the tree so global_transform (which bakes the import's Z-up to
-		# Y-up rotation + unit scale) is valid for each variant
 		add_child(inst)
 		var meshes: Array = []
 		_gather_meshes(inst, meshes)
@@ -89,10 +504,11 @@ func _collect(paths: Array, into: Array) -> void:
 				var om = m.get_surface_override_material(si)
 				if om:
 					tpl.set_surface_override_material(si, om)
-			# bake full orientation/scale; recenter (variants are spread along X)
 			var gt: Transform3D = m.global_transform
 			gt.origin = Vector3.ZERO
 			tpl.transform = gt
+			var h: float = tpl.get_aabb().size.y
+			tpl.set_meta("height", h)
 			into.append(tpl)
 		remove_child(inst)
 		inst.free()
@@ -105,7 +521,6 @@ func _gather_meshes(n: Node, into: Array) -> void:
 		_gather_meshes(c, into)
 
 
-# Wrap a template in a mover node so it slides toward the player and frees itself.
 func _make_mover(template: MeshInstance3D) -> Node3D:
 	var mover := Node3D.new()
 	mover.set_script(env_move_script)
@@ -122,9 +537,8 @@ func fence_area_body_entered():
 
 func _on_spawn_timer_timeout():
 	spawn_timer.wait_time = randf_range(1.2, 2.2)
-	# A clean trail of coins down a single lane (classic runner pickup line).
 	var lane_idx: int = randi() % 3
-	var count: int = 4 + (randi() % 5)  # 4..8 coins in a row
+	var count: int = 4 + (randi() % 5)
 	for i in count:
 		var coin_inst: MeshInstance3D = coin.instantiate()
 		add_child(coin_inst)
@@ -136,7 +550,6 @@ func _on_spawn_timer_timeout():
 
 
 func _on_spawn_env_timer_timeout():
-	# trees on both shoulders, plus the occasional bush for layered depth
 	_spawn_tree(1)
 	_spawn_tree(-1)
 	if randf() < 0.6:
@@ -149,7 +562,6 @@ func _on_spawn_env_timer_timeout():
 func _spawn_tree(dir: int) -> void:
 	if tree_templates.is_empty():
 		return
-	# pick a different tree than last time
 	var idx: int = randi() % tree_templates.size()
 	if tree_templates.size() > 1 and idx == _last_tree:
 		idx = (idx + 1) % tree_templates.size()
@@ -186,11 +598,9 @@ func _on_spawn_obstacle_timer_timeout():
 	spawn_obstacle_timer.wait_time = randf_range(1.6, 2.8)
 	if rock_templates.is_empty():
 		return
-	# Block 1 or 2 of the 3 lanes — NEVER all three, so there is always an
-	# escape lane (you can also jump a single rock). This keeps the game fair.
 	var lanes: Array = [0, 1, 2]
 	lanes.shuffle()
-	var block_count: int = 1 + (randi() % 2)  # 1 or 2
+	var block_count: int = 1 + (randi() % 2)
 	for i in block_count:
 		_spawn_rock(lanes[i])
 
@@ -206,21 +616,55 @@ func _spawn_rock(lane_idx: int) -> void:
 	add_child(mover)
 	mover.global_transform.origin = Vector3(road_spawnx[lane_idx], 0.0, startz)
 	mover.rotation.y = randf() * TAU
-	var rs: float = randf_range(1.5, 2.0)
-	mover.scale = Vector3(rs, rs, rs)
+	var rs: float = randf_range(0.85, 1.1)
+	mover.scale = Vector3(rs, rs * 0.52, rs)
 
 
-# Deterministic, lane-aligned collision: you only die if a rock is in YOUR
-# lane, has reached you in Z, and you haven't jumped above it.
 const HIT_Z: float = 0.9
 const HIT_X: float = 0.9
-const JUMP_CLEAR_Y: float = 0.8
+const JUMP_CLEAR_Y: float = 0.72
+
+
+func _road_material_for_distance(d: float) -> Material:
+	# km 0–1: normal asphalt, km 1–2: black vehicle road, km 2–3: carpet, then repeat
+	var zone: int = int(floor(d / KM_LENGTH)) % 3
+	match zone:
+		0:
+			return asphalt_mat
+		1:
+			return black_road_mat
+		_:
+			return carpet_mat
+
+
+func _update_road_materials() -> void:
+	for seg in road_segments:
+		# subtract z so new road types appear ahead (negative z) and scroll toward the player
+		var d: float = run_distance - seg.position.z
+		seg.material_override = _road_material_for_distance(d)
 
 
 func _process(delta: float) -> void:
-	# flow the dashed lane lines toward the player in lock-step with obstacles
+	run_distance += LANE_SCROLL_SPEED * delta
 	line_scroll += LANE_SCROLL_SPEED * delta
 	line_mat.set_shader_parameter("scroll_offset", line_scroll)
+	_scroll_road_segments(delta)
+	_update_road_materials()
+
+
+func _scroll_road_segments(delta: float) -> void:
+	if road_segments.is_empty():
+		return
+	var dz: float = LANE_SCROLL_SPEED * delta
+	for seg in road_segments:
+		seg.position.z += dz
+	var min_z: float = INF
+	for seg in road_segments:
+		min_z = minf(min_z, seg.position.z)
+	for seg in road_segments:
+		if seg.position.z > 28.0:
+			min_z -= ROAD_SEGMENT_LEN
+			seg.position.z = min_z
 
 
 func _physics_process(_delta: float) -> void:

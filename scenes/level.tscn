@@ -1,9 +1,8 @@
-[gd_scene load_steps=12 format=3 uid="uid://hkwwvyk01snk"]
+[gd_scene load_steps=11 format=3 uid="uid://hkwwvyk01snk"]
 
 [ext_resource type="PackedScene" uid="uid://vqbje6mv5arl" path="res://scenes/player/player_scene.tscn" id="2"]
 [ext_resource type="Material" path="res://models/ground_grass.tres" id="3"]
 [ext_resource type="Script" uid="uid://0ri21b5qccn6" path="res://scripts/level.gd" id="5"]
-[ext_resource type="Material" path="res://models/road_asphalt.tres" id="6"]
 [ext_resource type="Material" path="res://models/linemat.tres" id="7"]
 [ext_resource type="Material" path="res://models/edgemat.tres" id="8"]
 
@@ -32,9 +31,6 @@ fog_depth_curve = 1.2
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
 size = Vector2(200, 130)
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_road"]
-size = Vector2(6.4, 130)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_line"]
 size = Vector2(0.24, 130)
@@ -66,11 +62,6 @@ autostart = true
 [node name="planet" type="MeshInstance3D" parent="." unique_id=1435372639]
 mesh = SubResource("PlaneMesh_ground")
 surface_material_override/0 = ExtResource("3")
-
-[node name="road" type="MeshInstance3D" parent="." unique_id=1987678961]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
-mesh = SubResource("PlaneMesh_road")
-surface_material_override/0 = ExtResource("6")
 
 [node name="line_left" type="MeshInstance3D" parent="." unique_id=441755289]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.12, 0)
