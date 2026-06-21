@@ -55,7 +55,7 @@ func request_fullscreen() -> void:
   }
 })();
 """, true)
-	elif DisplayServer.has_feature(DisplayServer.FEATURE_FULLSCREEN):
+	elif OS.get_name() in ["Windows", "macOS", "Linux", "Android", "iOS"]:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 

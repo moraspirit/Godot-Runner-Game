@@ -16,14 +16,11 @@ extends Node
 @onready var env_move_script = preload("res://scripts/env_script.gd")
 
 const NATURE_TREES: Array = [
-	"res://models/nature/Trees.glb",
 	"res://models/nature/PineTrees.glb",
-	"res://models/nature/BirchTrees.glb",
-	"res://models/nature/MapleTrees.glb",
+	"res://models/nature/Trees.glb",
 ]
 const NATURE_SHRUBS: Array = [
 	"res://models/nature/Bushes.glb",
-	"res://models/nature/FlowerBushes.glb",
 ]
 const NATURE_ROCKS: Array = [
 	"res://models/nature/Rocks.glb",

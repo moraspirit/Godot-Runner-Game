@@ -82,6 +82,8 @@ jobs:
         run: |
           mkdir -p build/web
           godot --headless --path . --export-release "${EXPORT_PRESET}" build/web/index.html
+          echo "Build sizes:"
+          ls -lh build/web/index.pck build/web/index.wasm build/web/index.js 2>/dev/null || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
