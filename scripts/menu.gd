@@ -1,6 +1,7 @@
 extends Control
 
 const TICKET_URL: String = "https://epilogue.moraspirit.com"
+const MENU_BG: Texture2D = preload("res://assets/menu_bg.jpg")
 
 var _overlay: PanelContainer
 var _overlay_title: Label
@@ -51,16 +52,18 @@ func _on_auth_ready(_logged_in: bool) -> void:
 func _build_ui() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var bg := ColorRect.new()
+	var bg := TextureRect.new()
 	add_child(bg)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.07, 0.1, 0.16)
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.texture = MENU_BG
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var gradient := ColorRect.new()
 	add_child(gradient)
 	gradient.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	gradient.color = Color(0.28, 0.1, 0.32, 0.35)
+	gradient.color = Color(0.12, 0.04, 0.18, 0.42)
 	gradient.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_user_label = Label.new()
