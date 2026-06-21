@@ -6,22 +6,46 @@ var _overlay: PanelContainer
 var _overlay_title: Label
 var _overlay_body: Label
 var _overlay_close: Button
+var _settings_panel: PanelContainer
+var _settings_box: VBoxContainer
 var _sound_btn: Button
 var _play_btn: Button
 var _user_label: Label
 var _auth_panel: Control
 var _login_btn: Button
 var _logout_btn: Button
+var _title_label: Label
+var _subtitle_label: Label
+var _btn_font: int = 32
+var _title_font: int = 78
 
 
 func _ready() -> void:
 	GameSettings.apply_sound()
+	_apply_responsive_scale()
 	_build_ui()
 	_refresh_auth_ui()
+	if not AuthSession.auth_ready.is_connected(_on_auth_ready):
+		AuthSession.auth_ready.connect(_on_auth_ready)
 	if SimConstants.API_BASE != "" and not AuthSession.is_logged_in():
-		call_deferred("_show_auth_panel")
+		call_deferred("_maybe_show_auth")
 	if not ApiClient.request_finished.is_connected(_on_api_leaderboard):
 		ApiClient.request_finished.connect(_on_api_leaderboard)
+
+
+func _apply_responsive_scale() -> void:
+	if BrowserBridge.is_mobile_viewport():
+		_btn_font = 28
+		_title_font = 56
+
+
+func _maybe_show_auth() -> void:
+	if SimConstants.API_BASE != "" and not AuthSession.is_logged_in():
+		_show_auth_panel()
+
+
+func _on_auth_ready(_logged_in: bool) -> void:
+	_refresh_auth_ui()
 
 
 func _build_ui() -> void:
@@ -45,70 +69,55 @@ func _build_ui() -> void:
 	_user_label.offset_top = 16
 	_user_label.offset_bottom = 52
 	_user_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_user_label.add_theme_font_size_override("font_size", 20)
+	_user_label.add_theme_font_size_override("font_size", 18 if BrowserBridge.is_mobile_viewport() else 20)
 	_user_label.add_theme_color_override("font_color", Color(0.75, 0.82, 0.95, 0.9))
 
 	var margin := MarginContainer.new()
 	add_child(margin)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_right", 28)
+	var edge := 20 if BrowserBridge.is_mobile_viewport() else 28
+	margin.add_theme_constant_override("margin_left", edge)
+	margin.add_theme_constant_override("margin_right", edge)
 	margin.add_theme_constant_override("margin_top", 56)
-	margin.add_theme_constant_override("margin_bottom", 48)
+	margin.add_theme_constant_override("margin_bottom", 40)
 
 	var root := VBoxContainer.new()
 	margin.add_child(root)
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 18)
+	root.add_theme_constant_override("separation", 16 if BrowserBridge.is_mobile_viewport() else 18)
 	root.alignment = BoxContainer.ALIGNMENT_CENTER
 
-	var title := Label.new()
-	root.add_child(title)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 78)
-	title.add_theme_color_override("font_color", Color(1, 0.86, 0.32))
-	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.55))
-	title.add_theme_constant_override("outline_size", 10)
-	title.text = "EPILOGUE"
+	_title_label = Label.new()
+	root.add_child(_title_label)
+	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_label.add_theme_font_size_override("font_size", _title_font)
+	_title_label.add_theme_color_override("font_color", Color(1, 0.86, 0.32))
+	_title_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.55))
+	_title_label.add_theme_constant_override("outline_size", 10)
+	_title_label.text = "EPILOGUE"
 
-	var subtitle := Label.new()
-	root.add_child(subtitle)
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size", 34)
-	subtitle.add_theme_color_override("font_color", Color(0.82, 0.9, 1.0))
-	subtitle.text = "Runner"
+	_subtitle_label = Label.new()
+	root.add_child(_subtitle_label)
+	_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_subtitle_label.add_theme_font_size_override("font_size", 30 if BrowserBridge.is_mobile_viewport() else 34)
+	_subtitle_label.add_theme_color_override("font_color", Color(0.82, 0.9, 1.0))
+	_subtitle_label.text = "Runner"
 
 	var tag := Label.new()
 	root.add_child(tag)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tag.add_theme_font_size_override("font_size", 20)
+	tag.add_theme_font_size_override("font_size", 18 if BrowserBridge.is_mobile_viewport() else 20)
 	tag.add_theme_color_override("font_color", Color(0.72, 0.78, 0.92, 0.85))
 	tag.text = "28 July Concert"
 
 	root.add_child(_spacer(8))
 
-	_login_btn = _add_menu_button(root, "LOGIN / REGISTER", Color(0.22, 0.38, 0.72), _show_auth_panel)
-	_logout_btn = _add_menu_button(root, "LOGOUT", Color(0.35, 0.22, 0.22), _on_logout)
-	_logout_btn.visible = false
-
 	_play_btn = _add_menu_button(root, "PLAY", Color(0.16, 0.72, 0.4), _on_play)
 	_add_menu_button(root, "LEADERBOARD", Color(0.55, 0.35, 0.12), _on_leaderboard)
-	_add_menu_button(root, "BUY TICKET", Color(0.72, 0.48, 0.1), _on_buy_ticket)
-	_add_menu_button(root, "HOW TO PLAY", Color(0.22, 0.38, 0.72), func(): _show_overlay(
-		"How to Play",
-		"Login with your index number and phone first.\n\nSwipe left or right to change lane.\n\nSwipe up to jump over rocks.\n\nCollect coins — only coins count for score!"
-	))
-	_sound_btn = _add_menu_button(root, "", Color(0.28, 0.32, 0.42), _on_toggle_sound)
-	_refresh_sound_label()
-	_add_menu_button(root, "CREDITS", Color(0.28, 0.32, 0.42), func(): _show_overlay(
-		"Credits",
-		"moraspirit.com\n\nWeb & Technology Piler"
-	))
-
-	if not _is_mobile():
-		_add_menu_button(root, "QUIT", Color(0.45, 0.18, 0.18), _on_quit)
+	_add_menu_button(root, "SETTINGS", Color(0.28, 0.32, 0.42), _show_settings)
 
 	_build_overlay()
+	_build_settings_panel()
 
 	_auth_panel = load("res://scripts/auth_panel.gd").new()
 	add_child(_auth_panel)
@@ -116,10 +125,95 @@ func _build_ui() -> void:
 	_auth_panel.logged_in.connect(_on_logged_in)
 
 
+func _build_settings_panel() -> void:
+	var dim := ColorRect.new()
+	dim.name = "SettingsDim"
+	add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.62)
+	dim.visible = false
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(e: InputEvent):
+		if e is InputEventScreenTouch and e.pressed:
+			_hide_settings()
+		elif e is InputEventMouseButton and e.pressed:
+			_hide_settings()
+	)
+
+	_settings_panel = PanelContainer.new()
+	_settings_panel.name = "SettingsPanel"
+	add_child(_settings_panel)
+	_settings_panel.visible = false
+	var panel_w := 320 if BrowserBridge.is_mobile_viewport() else 300
+	_settings_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_settings_panel.offset_left = -panel_w
+	_settings_panel.offset_right = panel_w
+	_settings_panel.offset_top = -340
+	_settings_panel.offset_bottom = 340
+	_settings_panel.add_theme_stylebox_override("panel", _overlay_style())
+
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_settings_panel.add_child(scroll)
+
+	_settings_box = VBoxContainer.new()
+	scroll.add_child(_settings_box)
+	_settings_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_settings_box.add_theme_constant_override("separation", 12)
+
+	var settings_title := Label.new()
+	_settings_box.add_child(settings_title)
+	settings_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	settings_title.add_theme_font_size_override("font_size", 36)
+	settings_title.add_theme_color_override("font_color", Color(1, 0.9, 0.45))
+	settings_title.text = "Settings"
+
+	_login_btn = _add_menu_button(_settings_box, "LOGIN / REGISTER", Color(0.22, 0.38, 0.72), _show_auth_panel)
+	_logout_btn = _add_menu_button(_settings_box, "LOGOUT", Color(0.35, 0.22, 0.22), _on_logout)
+	_logout_btn.visible = false
+
+	_add_menu_button(_settings_box, "BUY TICKET", Color(0.72, 0.48, 0.1), _on_buy_ticket)
+	_add_menu_button(_settings_box, "HOW TO PLAY", Color(0.22, 0.38, 0.72), func(): _hide_settings(); _show_overlay(
+		"How to Play",
+		"Login once with your index number and phone — you stay signed in for 60 days.\n\nSwipe left or right to change lane.\n\nSwipe up to jump over rocks.\n\nCollect coins — only coins count for score!"
+	))
+	_sound_btn = _add_menu_button(_settings_box, "", Color(0.28, 0.32, 0.42), _on_toggle_sound)
+	_refresh_sound_label()
+	_add_menu_button(_settings_box, "CREDITS", Color(0.28, 0.32, 0.42), func(): _hide_settings(); _show_overlay(
+		"Credits",
+		"moraspirit.com\n\nWeb & Technology Piler"
+	))
+
+	if not _is_mobile():
+		_add_menu_button(_settings_box, "QUIT", Color(0.45, 0.18, 0.18), _on_quit)
+
+	var close_btn := Button.new()
+	_settings_box.add_child(close_btn)
+	close_btn.custom_minimum_size = Vector2(0, 64)
+	close_btn.text = "CLOSE"
+	close_btn.add_theme_font_size_override("font_size", 26)
+	close_btn.add_theme_stylebox_override("normal", _pill(Color(0.2, 0.55, 0.85)))
+	close_btn.pressed.connect(_hide_settings)
+
+
+func _show_settings() -> void:
+	_refresh_auth_ui()
+	_settings_panel.visible = true
+	get_node("SettingsDim").visible = true
+
+
+func _hide_settings() -> void:
+	_settings_panel.visible = false
+	get_node("SettingsDim").visible = false
+
+
 func _refresh_auth_ui() -> void:
 	var needs_auth := SimConstants.API_BASE != "" and not AuthSession.is_logged_in()
-	_login_btn.visible = needs_auth
-	_logout_btn.visible = AuthSession.is_logged_in()
+	if _login_btn:
+		_login_btn.visible = needs_auth
+	if _logout_btn:
+		_logout_btn.visible = AuthSession.is_logged_in()
 	if _play_btn:
 		_play_btn.disabled = needs_auth
 		_play_btn.text = "LOGIN TO PLAY" if needs_auth else "PLAY"
@@ -132,6 +226,7 @@ func _refresh_auth_ui() -> void:
 
 
 func _show_auth_panel() -> void:
+	_hide_settings()
 	_auth_panel.visible = true
 
 
@@ -212,9 +307,10 @@ func _try_show_leaderboard() -> void:
 func _add_menu_button(parent: Control, text: String, col: Color, cb: Callable) -> Button:
 	var btn := Button.new()
 	parent.add_child(btn)
-	btn.custom_minimum_size = Vector2(0, 80)
+	var h := 72 if BrowserBridge.is_mobile_viewport() else 80
+	btn.custom_minimum_size = Vector2(0, h)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.add_theme_font_size_override("font_size", 32)
+	btn.add_theme_font_size_override("font_size", _btn_font)
 	btn.text = text
 	btn.add_theme_stylebox_override("normal", _pill(col))
 	btn.add_theme_stylebox_override("hover", _pill(col.lightened(0.08)))
@@ -259,9 +355,10 @@ func _build_overlay() -> void:
 	_overlay.name = "OverlayPanel"
 	add_child(_overlay)
 	_overlay.visible = false
+	var panel_w := 300 if BrowserBridge.is_mobile_viewport() else 300
 	_overlay.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_overlay.offset_left = -300
-	_overlay.offset_right = 300
+	_overlay.offset_left = -panel_w
+	_overlay.offset_right = panel_w
 	_overlay.offset_top = -260
 	_overlay.offset_bottom = 260
 	_overlay.add_theme_stylebox_override("panel", _overlay_style())
@@ -273,21 +370,21 @@ func _build_overlay() -> void:
 	_overlay_title = Label.new()
 	box.add_child(_overlay_title)
 	_overlay_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_overlay_title.add_theme_font_size_override("font_size", 40)
+	_overlay_title.add_theme_font_size_override("font_size", 36 if BrowserBridge.is_mobile_viewport() else 40)
 	_overlay_title.add_theme_color_override("font_color", Color(1, 0.9, 0.45))
 
 	_overlay_body = Label.new()
 	box.add_child(_overlay_body)
 	_overlay_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_overlay_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_overlay_body.add_theme_font_size_override("font_size", 22)
+	_overlay_body.add_theme_font_size_override("font_size", 20 if BrowserBridge.is_mobile_viewport() else 22)
 	_overlay_body.add_theme_color_override("font_color", Color(0.9, 0.94, 1.0))
 
 	_overlay_close = Button.new()
 	box.add_child(_overlay_close)
-	_overlay_close.custom_minimum_size = Vector2(0, 72)
+	_overlay_close.custom_minimum_size = Vector2(0, 64)
 	_overlay_close.text = "CLOSE"
-	_overlay_close.add_theme_font_size_override("font_size", 28)
+	_overlay_close.add_theme_font_size_override("font_size", 26)
 	_overlay_close.add_theme_stylebox_override("normal", _pill(Color(0.2, 0.55, 0.85)))
 	_overlay_close.pressed.connect(_hide_overlay)
 
@@ -318,13 +415,15 @@ func _hide_overlay() -> void:
 
 
 func _refresh_sound_label() -> void:
-	_sound_btn.text = "SOUND: ON" if GameSettings.sound_enabled else "SOUND: OFF"
+	if _sound_btn:
+		_sound_btn.text = "SOUND: ON" if GameSettings.sound_enabled else "SOUND: OFF"
 
 
 func _on_play() -> void:
 	if SimConstants.API_BASE != "" and not AuthSession.is_logged_in():
 		_show_auth_panel()
 		return
+	BrowserBridge.request_fullscreen()
 	if _play_btn:
 		_play_btn.disabled = true
 		_play_btn.text = "LOADING..."

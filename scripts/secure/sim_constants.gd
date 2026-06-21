@@ -24,7 +24,7 @@ const DISTANCE_SCORE_PER_UNIT: float = 0.0
 const LOCAL_SCORE_PER_SEC: float = 0.0
 
 const API_BASE: String = "http://localhost:8080"
-const OFFLINE_FALLBACK: bool = true
+const OFFLINE_FALLBACK: bool = false
 const DEBUG_API: bool = true
 const SECURE_SPAWNS: bool = true
 
