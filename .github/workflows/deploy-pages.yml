@@ -1,0 +1,91 @@
+# Deploy static Godot web build to GitHub Pages.
+#
+# Setup (once):
+#   1. Repo → Settings → Pages → Source: GitHub Actions
+#   2. Repo → Settings → Secrets and variables → Actions → Variables:
+#        API_BASE_URL = https://api.yoursite.com   (your Docker backend URL)
+#
+# Your backend CORS_ORIGIN must match this site, e.g.:
+#   https://nipunsgeeth.github.io/Godot-Runner-Game
+# or your custom domain.
+
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      GODOT_VERSION: 4.6.0
+      EXPORT_PRESET: Web
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: firebelley/setup-godot@v1
+        with:
+          godot-version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+
+      - name: Configure API URL for production
+        run: |
+          if [ -z "$API_BASE_URL" ]; then
+            echo "::error::Set repository variable API_BASE_URL (e.g. https://api.yoursite.com)"
+            exit 1
+          fi
+          python3 <<'PY'
+          import re
+          from pathlib import Path
+          path = Path("scripts/secure/sim_constants.gd")
+          text = path.read_text()
+          api = __import__("os").environ["API_BASE_URL"].rstrip("/")
+          text = re.sub(
+              r'const API_BASE: String = "[^"]*"',
+              f'const API_BASE: String = "{api}"',
+              text,
+          )
+          text = re.sub(
+              r"const DEBUG_API: bool = \w+",
+              "const DEBUG_API: bool = false",
+              text,
+          )
+          text = re.sub(
+              r"const OFFLINE_FALLBACK: bool = \w+",
+              "const OFFLINE_FALLBACK: bool = false",
+              text,
+          )
+          path.write_text(text)
+          PY
+
+      - name: Export Web
+        run: |
+          mkdir -p build/web
+          godot --headless --path . --export-release "${EXPORT_PRESET}" build/web/index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
