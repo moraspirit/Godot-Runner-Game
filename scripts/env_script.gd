@@ -1,32 +1,18 @@
 extends Node3D
 
-var timer: Timer = Timer.new()
+const WorldScroller = preload("res://scripts/world_scroller.gd")
 
-signal player_entered
+## Decorative / side scenery mover — scroll, soft horizon fade, cleanup after passing player.
 
 
-func _ready():
-	timer.wait_time = float(get_meta("lifetime", 8.0))
-	timer.autostart = true
-# warning-ignore:return_value_discarded
-	timer.connect("timeout", Callable(self, "timer_timeout"))
-	add_child(timer)
+func _ready() -> void:
 	add_to_group("scrollers")
+	if bool(get_meta("horizon_fade", true)):
+		WorldScroller.apply_horizon_fade(self)
 
 
-# warning-ignore:unused_argument
-func _process(delta):
-	var level := get_tree().get_first_node_in_group("level")
-	if level and level.has_method("is_world_active") and not level.is_world_active():
+func _process(delta: float) -> void:
+	if not WorldScroller.is_world_active(get_tree()):
 		return
-	global_translate(Vector3(0, 0, 15.0 * delta))
-
-
-func timer_timeout():
-	queue_free()
-
-
-# every rock is connected to the player script each time a new instance is spawned
-func _on_Area_area_entered(area):
-	if area.is_in_group("player_skeleton"):
-		emit_signal("player_entered")
+	WorldScroller.scroll(self, delta)
+	WorldScroller.despawn_if_passed(self, get_tree())

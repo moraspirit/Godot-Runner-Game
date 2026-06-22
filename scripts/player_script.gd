@@ -653,7 +653,8 @@ func _on_collision_area_entered(area) -> void:
 		var level := get_tree().get_first_node_in_group("level")
 		if level and level.has_method("get_segment_distance"):
 			var oid: int = int(parent.get_meta("object_id", -1))
-			var lane: int = int(parent.get_meta("spawn_lane", current_lane))
-			var dist: float = float(parent.get_meta("map_distance", level.get_segment_distance()))
-			MoveLog.log_coin(oid, lane, dist)
+			if oid >= 0 and parent.has_meta("map_distance"):
+				var lane: int = int(parent.get_meta("spawn_lane", current_lane))
+				var dist: float = float(parent.get_meta("map_distance"))
+				MoveLog.log_coin(oid, lane, dist)
 		parent.queue_free()

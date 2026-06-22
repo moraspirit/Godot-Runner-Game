@@ -32,6 +32,7 @@ const SECURE_SPAWNS: bool = true
 
 const SPAWN_Z: float = -50.0
 const SPAWN_LEAD: float = 55.0
+# Decorative scenery uses WorldScroller.SPAWN_AHEAD (~-95). Gameplay spawns must use SPAWN_Z above.
 
 # --- spawn density (segment_map.gd) — max practical density ---
 const MIN_ROCK_GAP: float = 18.0

@@ -38,12 +38,20 @@ var line_scroll: float = 0.0
 var run_distance: float = 0.0
 const KM_LENGTH: float = 1000.0
 
-var startz: float = -50.0
+# Road edge lines sit at ±3.1 — keep all scenery outside this band.
+const ROAD_EDGE_X: float = 3.1
+const ROAD_SHOULDER: float = 2.4
+const ROAD_KEEP_OUT_X: float = ROAD_EDGE_X + ROAD_SHOULDER
+
+const WorldScroller = preload("res://scripts/world_scroller.gd")
+
+var startz: float = -WorldScroller.SPAWN_AHEAD
+
 var road_spawnx: Array = [-2, 0, 2]
 
-const FENCE_COUNT: int = 30
+const FENCE_COUNT: int = 64
+const FENCE_SPACING: float = 1.5
 var fences: Array = []
-var fencez: float = 0.0
 
 # scrolling road strips — material set by 1 km zones (see _road_material_for_distance)
 const ROAD_SEGMENT_LEN: float = 5.0
@@ -64,6 +72,11 @@ var sign_reflector_mat: StandardMaterial3D
 
 # concert boards spawn further down the road so they pass after the Lagaan sign
 const CONCERT_ROAD_GAP: float = 38.0
+const BOAT_YARD_LAKE_GAP: float = 34.0
+const BOAT_YARD_SEGMENT_LENGTH: float = 150.0
+
+var _boat_yard_mover: Node3D = null
+var _boat_yard_start_distance: float = -1.0
 
 var _segment_start_distance: float = 0.0
 var _segment_spawns: Array = []
@@ -81,6 +94,7 @@ func _ready():
 	_load_nature()
 	_setup_road_segments()
 	_setup_signs()
+	spawn_env_timer.wait_time = randf_range(0.55, 0.85)
 
 	if SimConstants.SECURE_SPAWNS:
 		spawn_timer.stop()
@@ -92,17 +106,18 @@ func _ready():
 	else:
 		randomize()
 
-	var z = 5
+	var z_start: float = 6.0
+	var z_end: float = -WorldScroller.SPAWN_AHEAD
+	var z_step: float = (z_start - z_end) / float(maxi(FENCE_COUNT - 1, 1))
 	for i in FENCE_COUNT:
 		var fence_inst = fence.instantiate()
 		fence_inst.connect("body_entered", Callable(self, "fence_area_body_entered"))
 		fences.append(fence_inst)
 		add_child(fence_inst)
-		fence_inst.global_transform.origin = Vector3(0, 0, z)
-		z -= 1.5
-		fencez = z
+		fence_inst.global_transform.origin = Vector3(0, 0, z_start - float(i) * z_step)
 
 	_setup_bgm()
+	call_deferred("_populate_initial_side_world")
 
 
 func _setup_bgm() -> void:
@@ -216,7 +231,7 @@ func _spawn_seeded_coin(entry: Dictionary) -> void:
 	coin_inst.global_transform.origin = Vector3(
 		road_spawnx[int(entry.lane)],
 		1.0,
-		startz
+		SimConstants.SPAWN_Z
 	)
 
 
@@ -225,13 +240,13 @@ func _spawn_seeded_rock(entry: Dictionary) -> void:
 		return
 	var rng := SeededRng.new(int(entry.object_id) + RunSession.current_seed)
 	var idx: int = rng.randi_mod(rock_templates.size())
-	var mover := _make_mover(rock_templates[idx])
+	var mover := _make_mover(rock_templates[idx], false)
 	mover.add_to_group("rocks")
 	mover.set_meta("object_id", int(entry.object_id))
 	mover.set_meta("spawn_lane", int(entry.lane))
 	mover.set_meta("map_distance", float(entry.distance))
 	add_child(mover)
-	mover.global_transform.origin = Vector3(road_spawnx[int(entry.lane)], 0.0, startz)
+	mover.global_transform.origin = Vector3(road_spawnx[int(entry.lane)], 0.0, SimConstants.SPAWN_Z)
 	mover.rotation.y = rng.randf() * TAU
 	var rs: float = rng.randf_range(0.85, 1.1)
 	mover.scale = Vector3(rs, rs * 0.52, rs)
@@ -264,7 +279,7 @@ func _try_segment_checkpoint() -> void:
 	if get_segment_distance() < SimConstants.SEGMENT_LENGTH:
 		return
 	_checkpoint_busy = true
-	RunSession.submit_checkpoint(get_segment_distance())
+	RunSession.submit_checkpoint(MoveLog.finish_distance(get_segment_distance()))
 
 
 func _setup_road_segments() -> void:
@@ -326,6 +341,12 @@ func _on_sign_timer() -> void:
 		var concert_travel: float = abs(concert_z) / LANE_SCROLL_SPEED
 		sign_timer.wait_time = concert_travel + 4.0
 		return
+	if name == "Boat Yard":
+		_spawn_sign("Boat Yard")
+		_spawn_boat_yard_lake()
+		sign_index = (sign_index + 1) % street_names.size()
+		sign_timer.wait_time = randf_range(14.0, 18.0)
+		return
 	_spawn_sign(name)
 	sign_index = (sign_index + 1) % street_names.size()
 	sign_timer.wait_time = randf_range(7.5, 11.0)
@@ -338,11 +359,137 @@ func _spawn_concert_boards() -> void:
 	_spawn_concert_side(5.5, z_pos, "LIVE MUSIC", "28 JULY", -22.0, 14.0)
 
 
+func _spawn_boat_yard_lake() -> void:
+	_boat_yard_start_distance = run_distance
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	_boat_yard_mover = _spawn_boat_yard_lake_piece(startz - BOAT_YARD_LAKE_GAP, rng)
+	_clear_left_scenery_for_boat_yard_start()
+
+
+func _spawn_boat_yard_lake_piece(z_center: float, rng: RandomNumberGenerator) -> Node3D:
+	var prop: Node3D = SideScenery.create_boat_yard_lake(rng)
+	var mover := Node3D.new()
+	mover.set_script(env_move_script)
+	mover.set_meta("lifetime", 62.0)
+	mover.set_meta("side_kind", "lake")
+	mover.add_child(prop)
+	add_child(mover)
+	mover.global_transform.origin = Vector3(-7.3, 0.04, z_center)
+	return mover
+
+
+func _is_boat_yard_active() -> bool:
+	if _boat_yard_start_distance < 0.0:
+		return false
+	return run_distance <= _boat_yard_start_distance + BOAT_YARD_SEGMENT_LENGTH
+
+
+func _is_boat_yard_scenery(node: Node) -> bool:
+	if node == _boat_yard_mover:
+		return true
+	if _boat_yard_mover != null and is_instance_valid(_boat_yard_mover) and _boat_yard_mover.is_ancestor_of(node):
+		return true
+	var kind: String = str(node.get_meta("side_kind", ""))
+	return kind in ["lake", "boat"]
+
+
+const _BOAT_YARD_LEFT_BLOCK_KINDS: Array = [
+	"building", "tower", "shop", "cluster", "shed", "tree", "shrub", "car", "human", "river", "bridge",
+]
+
+
+func _manage_boat_yard_left_scenery() -> void:
+	if not _is_boat_yard_active() or player == null:
+		return
+	var pz: float = player.global_transform.origin.z
+	for n in get_tree().get_nodes_in_group("scrollers"):
+		if not is_instance_valid(n):
+			continue
+		if _is_boat_yard_scenery(n):
+			continue
+		var kind: String = str(n.get_meta("side_kind", ""))
+		if kind not in _BOAT_YARD_LEFT_BLOCK_KINDS:
+			continue
+		var pos: Vector3 = n.global_transform.origin
+		if pos.x > -5.5:
+			continue
+		# Hide before they reach the runner — never pop-delete in front of the camera.
+		if pos.z > pz - 8.0 and pos.z < pz + 50.0:
+			n.visible = false
+		if pos.z < pz - 18.0:
+			n.queue_free()
+
+
+func _clear_left_scenery_for_boat_yard_start() -> void:
+	var z_center: float = startz - BOAT_YARD_LAKE_GAP
+	for n in get_tree().get_nodes_in_group("scrollers"):
+		if not is_instance_valid(n):
+			continue
+		if _is_boat_yard_scenery(n):
+			continue
+		var kind: String = str(n.get_meta("side_kind", ""))
+		if kind not in _BOAT_YARD_LEFT_BLOCK_KINDS:
+			continue
+		var pos: Vector3 = n.global_transform.origin
+		if pos.x > -5.5:
+			continue
+		if abs(pos.z - z_center) > 58.0:
+			continue
+		n.queue_free()
+
+
+func _side_spawn_min_x(kind: String) -> float:
+	match kind:
+		"human", "lamp", "bench", "car":
+			return ROAD_KEEP_OUT_X + 1.2
+		"boat":
+			return ROAD_KEEP_OUT_X + 2.5
+		"building", "shop", "shed", "tower":
+			return ROAD_KEEP_OUT_X + 4.5
+		"cluster", "river", "bridge":
+			return ROAD_KEEP_OUT_X + 5.5
+		"shrub":
+			return ROAD_KEEP_OUT_X + 3.0
+		"tree":
+			return ROAD_KEEP_OUT_X + 4.0
+		_:
+			return ROAD_KEEP_OUT_X + 3.5
+
+
+func _side_spawn_max_x(_kind: String) -> float:
+	return 20.0
+
+
+func _road_clearance_for_kind(kind: String) -> float:
+	return _side_spawn_min_x(kind) - 0.75
+
+
+func _purge_road_intrusions() -> void:
+	const PURGE_KINDS: Array = [
+		"building", "tower", "shop", "cluster", "shed", "bridge", "river",
+		"car", "human", "bench", "lamp", "tree", "shrub", "boat",
+	]
+	for n in get_tree().get_nodes_in_group("scrollers"):
+		if not is_instance_valid(n):
+			continue
+		var kind: String = str(n.get_meta("side_kind", ""))
+		if kind not in PURGE_KINDS:
+			continue
+		var pos: Vector3 = n.global_transform.origin
+		if _is_boat_yard_active() and pos.x < 0.0:
+			continue
+		var limit: float = _road_clearance_for_kind(kind)
+		if abs(pos.x) < limit:
+			n.queue_free()
+
+
 func _spawn_epilogue_arch(z: float) -> void:
 	# decorative gateway over the road — no collision, the boy runs straight under it
 	var root := Node3D.new()
 	root.set_script(env_move_script)
 	root.set_meta("lifetime", 14.0)
+	root.set_meta("side_kind", "concert")
 	add_child(root)
 	root.global_transform.origin = Vector3(0.0, 0.0, z)
 
@@ -462,6 +609,7 @@ func _spawn_concert_side(x: float, z: float, title: String, date_line: String, r
 	var root := Node3D.new()
 	root.set_script(env_move_script)
 	root.set_meta("lifetime", lifetime)
+	root.set_meta("side_kind", "concert")
 	add_child(root)
 	root.global_transform.origin = Vector3(x, 0.0, z)
 	_add_concert_sign(root, title, date_line, rot_y)
@@ -471,6 +619,7 @@ func _spawn_sign(text: String) -> Node3D:
 	var root := Node3D.new()
 	root.set_script(env_move_script)
 	root.set_meta("lifetime", 10.0)
+	root.set_meta("side_kind", "sign")
 	add_child(root)
 	root.global_transform.origin = Vector3(-5.2, 0.0, startz)
 	_add_street_sign(root, text, Vector3.ZERO, 22.0)
@@ -704,9 +853,10 @@ func _gather_meshes(n: Node, into: Array) -> void:
 		_gather_meshes(c, into)
 
 
-func _make_mover(template: MeshInstance3D) -> Node3D:
+func _make_mover(template: MeshInstance3D, horizon_fade: bool = true) -> Node3D:
 	var mover := Node3D.new()
 	mover.set_script(env_move_script)
+	mover.set_meta("horizon_fade", horizon_fade)
 	mover.add_child(template.duplicate())
 	return mover
 
@@ -715,9 +865,20 @@ func fence_area_body_entered():
 	if _game_stopped():
 		return
 	var first_fence = fences.front()
-	first_fence.global_transform.origin = Vector3(0, 0, fencez)
+	var player_z: float = player.global_transform.origin.z if player else 0.0
+	var tail_z: float = _furthest_fence_z() - FENCE_SPACING
+	var spawn_z: float = minf(tail_z, player_z - WorldScroller.SPAWN_AHEAD)
+	first_fence.global_transform.origin = Vector3(0, 0, spawn_z)
 	fences.pop_front()
 	fences.append(first_fence)
+
+
+func _furthest_fence_z() -> float:
+	var min_z: float = INF
+	for f in fences:
+		if is_instance_valid(f):
+			min_z = minf(min_z, f.global_transform.origin.z)
+	return min_z if min_z != INF else -WorldScroller.SPAWN_AHEAD
 
 
 func _on_spawn_timer_timeout():
@@ -739,45 +900,117 @@ func _on_spawn_timer_timeout():
 func _on_spawn_env_timer_timeout():
 	if _game_stopped():
 		return
+	spawn_env_timer.wait_time = randf_range(0.55, 0.85)
 	_spawn_tree(1)
 	_spawn_tree(-1)
-	if randf() < 0.6:
+	if randf() < 0.5:
+		_spawn_tree(1)
+	if randf() < 0.5:
+		_spawn_tree(-1)
+	if randf() < 0.72:
 		_spawn_shrub(1)
-	if randf() < 0.6:
+	if randf() < 0.72:
 		_spawn_shrub(-1)
-	spawn_env_timer.wait_time = randf_range(0.45, 0.8)
+	_spawn_side_props(1)
+	_spawn_side_props(-1)
 
 
-func _spawn_tree(dir: int) -> void:
+func _populate_initial_side_world() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	for dir in [-1, 1]:
+		for i in range(10):
+			var z: float = 8.0 - float(i) * 10.0
+			_spawn_side_prop_at(dir, z, rng, i % 3 == 0)
+		for i in range(9):
+			_spawn_tree(dir, 10.0 - float(i) * 11.0)
+		for i in range(5):
+			_spawn_shrub(dir, 6.0 - float(i) * 13.0)
+		_spawn_side_prop_at(dir, -18.0, rng, true, "river")
+		_spawn_side_prop_at(dir, -42.0, rng, true, "bridge")
+
+
+func _spawn_side_props(dir: int) -> void:
+	if dir == -1 and _is_boat_yard_active():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var base_z: float = startz + rng.randf_range(-6.0, 4.0)
+	if rng.randf() < 0.94:
+		_spawn_side_prop_at(dir, base_z, rng, rng.randf() < 0.42)
+	if rng.randf() < 0.62:
+		_spawn_side_prop_at(dir, base_z + rng.randf_range(-4.0, 4.0), rng, rng.randf() < 0.28)
+	if rng.randf() < 0.14:
+		_spawn_side_prop_at(dir, startz + rng.randf_range(-3.0, 3.0), rng, false, "car")
+	if rng.randf() < 0.22:
+		_spawn_side_prop_at(dir, startz + rng.randf_range(-3.0, 3.0), rng, false, "human")
+	if rng.randf() < 0.12:
+		_spawn_side_prop_at(dir, startz + rng.randf_range(-2.0, 2.0), rng, false, "river")
+
+
+func _spawn_side_prop_at(dir: int, z: float, rng: RandomNumberGenerator, cluster: bool, kind: String = "") -> void:
+	if kind == "" and cluster:
+		kind = "cluster"
+	var prop: Node3D = SideScenery.create_random(rng, kind)
+	var mover := Node3D.new()
+	mover.set_script(env_move_script)
+	mover.set_meta("side_kind", kind)
+	mover.set_meta("horizon_fade", true)
+	mover.add_child(prop)
+	add_child(mover)
+	var min_x: float = _side_spawn_min_x(kind)
+	var max_x: float = _side_spawn_max_x(kind)
+	mover.global_transform.origin = Vector3(dir * rng.randf_range(min_x, max_x), 0.0, z + rng.randf_range(-2.0, 2.0))
+	mover.rotation.y = (PI if dir < 0 else 0.0) + rng.randf_range(-0.35, 0.35)
+	var s: float = rng.randf_range(0.8, 1.15)
+	if kind == "tower":
+		s *= rng.randf_range(1.0, 1.2)
+	mover.scale = Vector3(s, s, s)
+	if kind in ["building", "tower", "shop", "shed", "cluster"]:
+		if rng.randf() < 0.58:
+			_spawn_tree(dir, z + rng.randf_range(-3.0, 3.0))
+		if rng.randf() < 0.35:
+			_spawn_shrub(dir, z + rng.randf_range(-2.0, 2.0))
+
+
+func _spawn_tree(dir: int, z: float = INF) -> void:
+	if dir == -1 and _is_boat_yard_active():
+		return
 	if tree_templates.is_empty():
 		return
+	var spawn_z: float = z if z != INF else startz + randf_range(-4.0, 4.0)
 	var idx: int = randi() % tree_templates.size()
 	if tree_templates.size() > 1 and idx == _last_tree:
 		idx = (idx + 1) % tree_templates.size()
 	_last_tree = idx
 
 	var mover := _make_mover(tree_templates[idx])
+	mover.set_meta("side_kind", "tree")
 	add_child(mover)
 	var s: float = randf_range(0.85, 1.5)
 	mover.global_transform.origin = Vector3(
-		dir * randf_range(7.0, 18.0),
+		dir * randf_range(_side_spawn_min_x("tree"), _side_spawn_max_x("tree")),
 		0.0,
-		startz + randf_range(-4.0, 4.0)
+		spawn_z
 	)
 	mover.rotation.y = randf() * TAU
 	mover.scale = Vector3(s, s, s)
 
 
-func _spawn_shrub(dir: int) -> void:
+func _spawn_shrub(dir: int, z: float = INF) -> void:
+	if dir == -1 and _is_boat_yard_active():
+		return
 	if shrub_templates.is_empty():
 		return
+	var spawn_z: float = z if z != INF else startz + randf_range(-3.0, 3.0)
 	var mover := _make_mover(shrub_templates[randi() % shrub_templates.size()])
+	mover.set_meta("side_kind", "shrub")
 	add_child(mover)
 	var s: float = randf_range(0.7, 1.3)
 	mover.global_transform.origin = Vector3(
-		dir * randf_range(4.5, 8.5),
+		dir * randf_range(_side_spawn_min_x("shrub"), _side_spawn_max_x("shrub")),
 		0.0,
-		startz + randf_range(-3.0, 3.0)
+		spawn_z
 	)
 	mover.rotation.y = randf() * TAU
 	mover.scale = Vector3(s, s, s)
@@ -802,7 +1035,7 @@ func _spawn_rock(lane_idx: int) -> void:
 		idx = (idx + 1) % rock_templates.size()
 	_last_rock = idx
 
-	var mover := _make_mover(rock_templates[idx])
+	var mover := _make_mover(rock_templates[idx], false)
 	mover.add_to_group("rocks")
 	add_child(mover)
 	mover.global_transform.origin = Vector3(road_spawnx[lane_idx], 0.0, startz)
@@ -843,6 +1076,10 @@ func _process(delta: float) -> void:
 	line_mat.set_shader_parameter("scroll_offset", line_scroll)
 	_scroll_road_segments(delta)
 	_update_road_materials()
+	if _is_boat_yard_active() and Engine.get_process_frames() % 8 == 0:
+		_manage_boat_yard_left_scenery()
+	if Engine.get_process_frames() % 10 == 0:
+		_purge_road_intrusions()
 	if SimConstants.SECURE_SPAWNS:
 		_process_secure_spawns()
 		_try_segment_checkpoint()
@@ -875,10 +1112,11 @@ func _physics_process(_delta: float) -> void:
 			if SimConstants.SECURE_SPAWNS:
 				var oid: int = int(r.get_meta("object_id", -1))
 				var lane: int = int(r.get_meta("spawn_lane", _lane_index_from_x(rp.x)))
-				var dist: float = float(r.get_meta("map_distance", get_segment_distance()))
-				MoveLog.log_collision(oid, lane, dist)
+				var map_dist: float = float(r.get_meta("map_distance", get_segment_distance()))
+				MoveLog.log_collision(oid, lane, map_dist)
 				player.die()
-				RunSession.submit_finish(dist, "collision")
+				var finish_dist: float = MoveLog.finish_distance(get_segment_distance(), map_dist)
+				RunSession.submit_finish(finish_dist, "collision")
 			else:
 				player.die()
 			return

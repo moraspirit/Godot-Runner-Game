@@ -67,6 +67,22 @@ func log_collision(object_id: int, lane: int, distance: float) -> void:
 	})
 
 
+func max_event_distance() -> float:
+	var max_d: float = 0.0
+	for e in events:
+		if e is Dictionary and e.has("distance"):
+			max_d = maxf(max_d, float(e["distance"]))
+	return max_d
+
+
+## final_distance must be >= every logged event distance (server SPEED_HACK check).
+func finish_distance(segment_distance: float, collision_map_distance: float = -1.0) -> float:
+	var d: float = maxf(segment_distance, max_event_distance())
+	if collision_map_distance >= 0.0:
+		d = maxf(d, collision_map_distance)
+	return d
+
+
 func to_dict(end_reason: String, final_distance: float) -> Dictionary:
 	return {
 		"sim_version": SimConstants.SIM_VERSION,

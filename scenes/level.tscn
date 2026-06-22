@@ -7,10 +7,13 @@
 [ext_resource type="Material" path="res://models/edgemat.tres" id="8"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
-sky_top_color = Color(0.36, 0.56, 0.86, 1)
-sky_horizon_color = Color(0.66, 0.72, 0.82, 1)
-ground_bottom_color = Color(0.55, 0.62, 0.62, 1)
-ground_horizon_color = Color(0.66, 0.72, 0.82, 1)
+sky_top_color = Color(0.30, 0.50, 0.76, 1)
+sky_horizon_color = Color(0.52, 0.60, 0.68, 1)
+sky_curve = 0.15
+ground_bottom_color = Color(0.18, 0.28, 0.16, 1)
+ground_horizon_color = Color(0.38, 0.46, 0.40, 1)
+ground_curve = 0.05
+sun_angle_max = 40.0
 
 [sub_resource type="Sky" id="Sky"]
 sky_material = SubResource("SkyMat")
@@ -19,23 +22,26 @@ sky_material = SubResource("SkyMat")
 background_mode = 2
 sky = SubResource("Sky")
 ambient_light_source = 3
+ambient_light_energy = 0.42
 tonemap_mode = 2
+tonemap_exposure = 1.0
 fog_enabled = true
 fog_mode = 1
-fog_light_color = Color(0.72, 0.78, 0.86, 1)
+fog_light_color = Color(0.46, 0.54, 0.50, 1)
 fog_density = 1.0
-fog_depth_curve = 1.2
-fog_depth_begin = 18.0
-fog_depth_end = 54.0
+fog_sky_affect = 0.28
+fog_depth_curve = 1.45
+fog_depth_begin = 38.0
+fog_depth_end = 112.0
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
-size = Vector2(200, 130)
+size = Vector2(220, 280)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_line"]
-size = Vector2(0.24, 130)
+size = Vector2(0.24, 280)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_edge"]
-size = Vector2(0.32, 130)
+size = Vector2(0.32, 280)
 
 [node name="level" type="Node" unique_id=14483789]
 script = ExtResource("5")
@@ -51,7 +57,7 @@ wait_time = 1.5
 autostart = true
 
 [node name="spawn_env_timer" type="Timer" parent="." unique_id=2102143106]
-wait_time = 0.1
+wait_time = 0.65
 autostart = true
 
 [node name="spawn_obstacle_timer" type="Timer" parent="." unique_id=1779144445]
@@ -84,14 +90,14 @@ surface_material_override/0 = ExtResource("8")
 
 [node name="sun" type="DirectionalLight3D" parent="." unique_id=251279499]
 transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 10, 0)
-light_color = Color(1, 0.95, 0.84, 1)
-light_energy = 1.35
+light_color = Color(1, 0.94, 0.82, 1)
+light_energy = 1.28
 shadow_enabled = true
 
 [node name="fill" type="DirectionalLight3D" parent="." unique_id=240806161]
 transform = Transform3D(-0.866025, 0.25, -0.433013, 0, 0.866025, 0.5, 0.5, 0.433013, -0.75, 0, 10, 0)
-light_color = Color(0.74, 0.82, 1, 1)
-light_energy = 0.45
+light_color = Color(0.62, 0.72, 0.82, 1)
+light_energy = 0.32
 
 [connection signal="timeout" from="spawn_timer" to="." method="_on_spawn_timer_timeout"]
 [connection signal="timeout" from="spawn_env_timer" to="." method="_on_spawn_env_timer_timeout"]

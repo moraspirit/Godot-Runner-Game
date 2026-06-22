@@ -5,6 +5,6 @@
 [resource]
 resource_name = "ground_grass"
 albedo_texture = ExtResource("1")
-uv1_scale = Vector3(50, 32, 1)
+uv1_scale = Vector3(50, 68, 1)
 roughness = 1.0
 metallic = 0.0

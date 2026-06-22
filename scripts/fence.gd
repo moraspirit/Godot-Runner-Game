@@ -1,19 +1,21 @@
 extends Node3D
 
+const WorldScroller = preload("res://scripts/world_scroller.gd")
+
 signal body_entered
 
 
 func _ready() -> void:
 	add_to_group("scrollers")
+	set_meta("side_kind", "fence")
+	WorldScroller.apply_horizon_fade(self)
 
-# warning-ignore:unused_argument
-func _process(delta):
-	var level := get_tree().get_first_node_in_group("level")
-	if level and level.has_method("is_world_active") and not level.is_world_active():
+
+func _process(delta: float) -> void:
+	if not WorldScroller.is_world_active(get_tree()):
 		return
-	global_translate(Vector3(0, 0, 0.25))
+	WorldScroller.scroll(self, delta)
 
 
-# warning-ignore:unused_argument
-func _on_area_body_entered(body):
+func _on_area_body_entered(body) -> void:
 	emit_signal("body_entered")

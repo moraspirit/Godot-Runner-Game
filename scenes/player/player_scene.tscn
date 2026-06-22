@@ -16,8 +16,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("1")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1488618441]
-transform = Transform3D(1, 0, 0, 0, 0.90630794, 0.42261797, 0, -0.42261797, 0.90630794, 0, 1.9292428, 1.0208204)
-fov = 121.65791
+transform = Transform3D(0.99674225, -0.06923679, 0.04136642, 0.03978634, 0.8682414, 0.49454403, -0.070156686, -0.49128714, 0.8681676, 0, 4.0654, 1.4019449)
+fov = 101.184296
 
 [node name="collision_area" type="Area3D" parent="." unique_id=1918826025]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
