@@ -20,17 +20,16 @@ permissions:
   pages: write
   id-token: write
 
+# Official GitHub Pages pattern: queue deployments; do NOT cancel in-progress.
+# cancel-in-progress: true leaves a Pages deployment stuck and the next deploy gets HTTP 400.
+# See: https://github.com/actions/starter-workflows/blob/main/pages/static.yml
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     env:
       GODOT_VERSION: 4.6.0
       EXPORT_PRESET: Web
@@ -105,10 +104,18 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: build/web
 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
