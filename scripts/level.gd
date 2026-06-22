@@ -70,6 +70,10 @@ var _segment_spawns: Array = []
 var _next_spawn_idx: int = 0
 var _checkpoint_busy: bool = false
 
+const BGM := preload("res://sounds/background-music.mp3")
+
+var _bgm_player: AudioStreamPlayer
+
 
 func _ready():
 	add_to_group("level")
@@ -96,6 +100,17 @@ func _ready():
 		fence_inst.global_transform.origin = Vector3(0, 0, z)
 		z -= 1.5
 		fencez = z
+
+	_setup_bgm()
+
+
+func _setup_bgm() -> void:
+	_bgm_player = AudioStreamPlayer.new()
+	_bgm_player.name = "BackgroundMusic"
+	_bgm_player.stream = BGM
+	_bgm_player.volume_db = -10.0
+	add_child(_bgm_player)
+	_bgm_player.play()
 
 
 func _boot_secure_segment() -> void:
@@ -764,6 +779,8 @@ func _update_road_materials() -> void:
 
 
 func _process(delta: float) -> void:
+	if _bgm_player and player and (player.is_dead or player.game_over) and _bgm_player.playing:
+		_bgm_player.stop()
 	run_distance += LANE_SCROLL_SPEED * delta
 	line_scroll += LANE_SCROLL_SPEED * delta
 	line_mat.set_shader_parameter("scroll_offset", line_scroll)

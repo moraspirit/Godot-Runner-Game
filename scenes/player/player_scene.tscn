@@ -1,7 +1,8 @@
 [gd_scene format=3 uid="uid://vqbje6mv5arl"]
 
 [ext_resource type="Script" uid="uid://71htmjvl5sa4" path="res://scripts/player_script.gd" id="2"]
-[ext_resource type="AudioStream" uid="uid://djijr0suhkcg5" path="res://sounds/coinpickup.wav" id="3"]
+[ext_resource type="AudioStream" uid="uid://cbhciugcj2sal" path="res://sounds/coinpickup.mp3" id="3"]
+[ext_resource type="AudioStream" uid="uid://ccpowfjgpak7u" path="res://sounds/dead-sound.mp3" id="4"]
 
 [sub_resource type="CapsuleShape3D" id="1"]
 radius = 0.4
@@ -29,5 +30,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 stream = ExtResource("3")
 volume_db = -4.0
 max_distance = 40.0
+
+[node name="DeathSFX" type="AudioStreamPlayer" parent="." unique_id=1847293016]
+stream = ExtResource("4")
+volume_db = -2.0
 
 [connection signal="area_entered" from="collision_area" to="." method="_on_collision_area_entered"]

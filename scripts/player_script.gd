@@ -3,6 +3,7 @@ extends CharacterBody3D
 const PLAYER_MODEL: String = "res://models/boy/Rogue.glb"
 
 @onready var audio_player: AudioStreamPlayer3D = $AudioStreamPlayer3D
+@onready var death_audio: AudioStreamPlayer = $DeathSFX
 var anim_player: AnimationPlayer
 
 const JUMP_FORCE: float = 9.0
@@ -73,6 +74,8 @@ func _ready() -> void:
 		RunSession.finish_resolved.connect(_on_finish_resolved)
 	if not AuthSession.profile_updated.is_connected(_on_profile_updated):
 		AuthSession.profile_updated.connect(_on_profile_updated)
+	if death_audio:
+		death_audio.process_mode = Node.PROCESS_MODE_ALWAYS
 	call_deferred("_layout_hud_panels")
 	_refresh_coin_hud()
 
@@ -440,6 +443,8 @@ func _start_death() -> void:
 		_finish_success = false
 		_finish_data = {}
 	_finish_ui_finalized = false
+	if death_audio:
+		death_audio.play()
 	if death_anim != "":
 		var a := anim_player.get_animation(death_anim)
 		if a:
