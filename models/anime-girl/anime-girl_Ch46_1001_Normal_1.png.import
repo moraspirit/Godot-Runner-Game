@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://w1yb6bsrvhpa"
-path.s3tc="res://.godot/imported/Rogue_rogue_texture.png-8c5e179ae6c36b635ddc8b6600d5ad2a.s3tc.ctex"
+uid="uid://c75bu8ewkv2x0"
+path.s3tc="res://.godot/imported/anime-girl_Ch46_1001_Normal_1.png-c80d65ae10b165137970521bc1137d48.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "5b6fbb4d6c67e8c66dd2dffbb40f8812"
+"md5": "0682f2fbe28611259fd4b1bedf4e9bc7"
 }
 
 [deps]
 
-source_file="res://models/boy/Rogue_rogue_texture.png"
-dest_files=["res://.godot/imported/Rogue_rogue_texture.png-8c5e179ae6c36b635ddc8b6600d5ad2a.s3tc.ctex"]
+source_file="res://models/anime-girl/anime-girl_Ch46_1001_Normal_1.png"
+dest_files=["res://.godot/imported/anime-girl_Ch46_1001_Normal_1.png-c80d65ae10b165137970521bc1137d48.s3tc.ctex"]
 
 [params]
 
@@ -25,12 +25,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://models/anime-girl/anime-girl_Ch46_1001_Normal_1.png"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

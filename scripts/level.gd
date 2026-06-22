@@ -69,6 +69,7 @@ var _segment_start_distance: float = 0.0
 var _segment_spawns: Array = []
 var _next_spawn_idx: int = 0
 var _checkpoint_busy: bool = false
+var _world_frozen: bool = false
 
 const BGM := preload("res://sounds/background-music.mp3")
 
@@ -110,7 +111,11 @@ func _setup_bgm() -> void:
 	_bgm_player.stream = BGM
 	_bgm_player.volume_db = -10.0
 	add_child(_bgm_player)
-	_bgm_player.play()
+
+
+func begin_run() -> void:
+	if _bgm_player and not _bgm_player.playing:
+		_bgm_player.play()
 
 
 func _boot_secure_segment() -> void:
@@ -122,6 +127,49 @@ func _boot_secure_segment() -> void:
 
 func get_segment_distance() -> float:
 	return run_distance - _segment_start_distance
+
+
+func _game_stopped() -> bool:
+	if player == null:
+		return true
+	if not player.game_started:
+		return true
+	return player.is_dead or player.game_over
+
+
+func is_world_active() -> bool:
+	return not _game_stopped()
+
+
+func freeze_world() -> void:
+	if _world_frozen:
+		return
+	_world_frozen = true
+	spawn_timer.stop()
+	spawn_env_timer.stop()
+	spawn_obstacle_timer.stop()
+	if sign_timer:
+		sign_timer.stop()
+	if _bgm_player and _bgm_player.playing:
+		_bgm_player.stop()
+	for c in get_tree().get_nodes_in_group("coins"):
+		if is_instance_valid(c):
+			_halt_node(c)
+			var coin_area: Area3D = c.get_node_or_null("Area3D") as Area3D
+			if coin_area:
+				coin_area.monitoring = false
+				coin_area.monitorable = false
+	for n in get_tree().get_nodes_in_group("scrollers"):
+		if is_instance_valid(n):
+			_halt_node(n)
+
+
+func _halt_node(node: Node) -> void:
+	node.set_process(false)
+	node.set_physics_process(false)
+	for child in node.get_children():
+		if child is Timer:
+			(child as Timer).stop()
 
 
 func _init_secure_segment() -> void:
@@ -268,6 +316,8 @@ func _setup_signs() -> void:
 
 
 func _on_sign_timer() -> void:
+	if _game_stopped():
+		return
 	var name: String = street_names[sign_index]
 	if name == "Lagaan":
 		_spawn_sign("Lagaan")
@@ -663,6 +713,8 @@ func _make_mover(template: MeshInstance3D) -> Node3D:
 
 
 func fence_area_body_entered():
+	if _game_stopped():
+		return
 	var first_fence = fences.front()
 	first_fence.global_transform.origin = Vector3(0, 0, fencez)
 	fences.pop_front()
@@ -670,6 +722,8 @@ func fence_area_body_entered():
 
 
 func _on_spawn_timer_timeout():
+	if _game_stopped():
+		return
 	spawn_timer.wait_time = randf_range(1.2, 2.2)
 	var lane_idx: int = randi() % 3
 	var count: int = 4 + (randi() % 5)
@@ -684,6 +738,8 @@ func _on_spawn_timer_timeout():
 
 
 func _on_spawn_env_timer_timeout():
+	if _game_stopped():
+		return
 	_spawn_tree(1)
 	_spawn_tree(-1)
 	if randf() < 0.6:
@@ -729,6 +785,8 @@ func _spawn_shrub(dir: int) -> void:
 
 
 func _on_spawn_obstacle_timer_timeout():
+	if _game_stopped():
+		return
 	spawn_obstacle_timer.wait_time = randf_range(1.6, 2.8)
 	if rock_templates.is_empty():
 		return
@@ -779,8 +837,8 @@ func _update_road_materials() -> void:
 
 
 func _process(delta: float) -> void:
-	if _bgm_player and player and (player.is_dead or player.game_over) and _bgm_player.playing:
-		_bgm_player.stop()
+	if _game_stopped():
+		return
 	run_distance += LANE_SCROLL_SPEED * delta
 	line_scroll += LANE_SCROLL_SPEED * delta
 	line_mat.set_shader_parameter("scroll_offset", line_scroll)
@@ -807,7 +865,7 @@ func _scroll_road_segments(delta: float) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if player == null or player.is_dead or player.game_over:
+	if _game_stopped():
 		return
 	var pp: Vector3 = player.global_transform.origin
 	for r in get_tree().get_nodes_in_group("rocks"):
@@ -820,6 +878,8 @@ func _physics_process(_delta: float) -> void:
 				var lane: int = int(r.get_meta("spawn_lane", _lane_index_from_x(rp.x)))
 				var dist: float = float(r.get_meta("map_distance", get_segment_distance()))
 				MoveLog.log_collision(oid, lane, dist)
+				player.die()
 				RunSession.submit_finish(dist, "collision")
-			player.is_dead = true
+			else:
+				player.die()
 			return

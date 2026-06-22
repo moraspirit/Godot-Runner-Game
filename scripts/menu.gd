@@ -314,15 +314,18 @@ func _on_logout() -> void:
 var _lb_top: Array = []
 var _lb_me: Dictionary = {}
 var _lb_pending: int = 0
+var _lb_failed: bool = false
 
 
 func _on_leaderboard() -> void:
 	if SimConstants.API_BASE == "":
-		_show_overlay("Leaderboard", "Connect to the server to view rankings.")
+		_show_overlay("Leaderboard", GameSettings.USER_ERROR_MSG)
 		return
 	_lb_top = []
 	_lb_me = {}
+	_lb_failed = false
 	_lb_pending = 1
+	_show_overlay("Leaderboard", "Loading...")
 	ApiClient.get_json("/v1/leaderboard")
 	if AuthSession.is_logged_in():
 		_lb_pending = 2
@@ -333,6 +336,8 @@ func _on_api_leaderboard(path: String, success: bool, _status: int, body: Dictio
 	if path == "/v1/leaderboard":
 		if success:
 			_lb_top = body.get("top", [])
+		else:
+			_lb_failed = true
 		_lb_pending -= 1
 		_try_show_leaderboard()
 	elif path == "/v1/leaderboard/me":
@@ -343,12 +348,19 @@ func _on_api_leaderboard(path: String, success: bool, _status: int, body: Dictio
 			if body.has("best_coins"):
 				AuthSession.best_coins = int(body.get("best_coins", AuthSession.best_coins))
 			_refresh_menu_top_bar()
+		else:
+			_lb_failed = true
 		_lb_pending -= 1
 		_try_show_leaderboard()
 
 
 func _try_show_leaderboard() -> void:
 	if _lb_pending > 0:
+		return
+	if _lb_failed and _lb_top.is_empty():
+		_show_overlay("Leaderboard", GameSettings.USER_ERROR_MSG)
+		_lb_top = []
+		_lb_me = {}
 		return
 	var lines: PackedStringArray = PackedStringArray()
 	lines.append("Top 10")
@@ -547,19 +559,16 @@ func _on_play_timeout() -> void:
 	if _play_btn == null or _play_btn.text != "LOADING...":
 		return
 	_refresh_auth_ui()
-	_show_overlay(
-		"Could not start",
-		"Timed out waiting for server.\n\nCheck that the API is running at:\n%s\n\nTap Close to stay on the menu." % SimConstants.API_BASE
-	)
+	_show_overlay("Error", GameSettings.USER_ERROR_MSG)
 
 
-func _on_run_ready(success: bool, error_message: String) -> void:
+func _on_run_ready(success: bool, _error_message: String) -> void:
 	_stop_play_timeout()
 	_refresh_auth_ui()
 	if not success:
 		if _play_btn:
 			_play_btn.disabled = SimConstants.API_BASE != "" and not AuthSession.is_logged_in()
-		_show_overlay("Could not start", error_message if error_message != "" else "Try again later.")
+		_show_overlay("Error", GameSettings.USER_ERROR_MSG)
 		return
 	get_tree().change_scene_to_file("res://scenes/level.tscn")
 

@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-const PLAYER_MODEL: String = "res://models/boy/Rogue.glb"
+const PLAYER_MODEL: String = "res://models/anime-girl/anime-girl.glb"
 
 @onready var audio_player: AudioStreamPlayer3D = $AudioStreamPlayer3D
 @onready var death_audio: AudioStreamPlayer = $DeathSFX
@@ -23,8 +23,10 @@ var jump_requested: bool = false
 var run_anim: String = ""
 var jump_anim: String = ""
 var death_anim: String = ""
+var dance_anim: String = ""
 var is_jumping: bool = false
 
+var game_started: bool = false
 var is_dead: bool = false
 var dying: bool = false
 var game_over: bool = false
@@ -43,6 +45,8 @@ var _finish_ui_finalized: bool = false
 var _finish_wait_timer: Timer
 var _play_again_btn: Button
 var _menu_btn: Button
+var _start_overlay: Control
+var _start_btn: Button
 
 const FINISH_WAIT_SEC: float = 22.0
 
@@ -61,12 +65,8 @@ func _ready() -> void:
 	_setup_hud()
 
 	ground_y = global_transform.origin.y
-	run_anim = _find_anim(["Running_A", "Run"])
-	jump_anim = _find_anim(["Jump_Full_Long", "Jump"])
-	death_anim = _find_anim(["Death_A", "Death"])
-	if run_anim != "":
-		anim_player.get_animation(run_anim).loop_mode = Animation.LOOP_LINEAR
-	_play_run()
+	_bind_anims()
+	_enter_attract_mode()
 	if not RunSession.checkpoint_resolved.is_connected(_on_checkpoint_resolved):
 		RunSession.checkpoint_resolved.connect(_on_checkpoint_resolved)
 	if not RunSession.finish_resolved.is_connected(_on_finish_resolved):
@@ -78,12 +78,11 @@ func _ready() -> void:
 	call_deferred("_layout_hud_panels")
 	_refresh_coin_hud()
 
-# Load the boy model, turn it to face the camera, and wire its AnimationPlayer.
+# Load model and wire AnimationPlayer (names matched from the rig at runtime).
 func _spawn_character() -> void:
 	var model := (load(PLAYER_MODEL) as PackedScene).instantiate()
 	model.name = "player"
 	var s: float = 0.85
-	# 180 deg about Y so the boy faces the camera (front toward viewer).
 	model.transform = Transform3D(Basis(Vector3.UP, PI).scaled(Vector3(s, s, s)), Vector3.ZERO)
 	add_child(model)
 	anim_player = model.get_node("AnimationPlayer")
@@ -159,7 +158,7 @@ func _setup_hud() -> void:
 	_play_again_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
 	_play_again_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_play_again_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
-	_play_again_btn.text = "Play"
+	_play_again_btn.text = "RESTART GAME"
 	_play_again_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.92, 0.95, 1.0)))
 	_play_again_btn.add_theme_color_override("font_color", Color(0.08, 0.1, 0.14))
 	_play_again_btn.pressed.connect(_restart)
@@ -173,6 +172,62 @@ func _setup_hud() -> void:
 	_menu_btn.text = "Menu"
 	_menu_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.12, 0.14, 0.2)))
 	_menu_btn.pressed.connect(_go_menu)
+
+	_setup_start_prompt(layer)
+
+
+func _setup_start_prompt(layer: CanvasLayer) -> void:
+	_start_overlay = Control.new()
+	layer.add_child(_start_overlay)
+	_start_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_start_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	_start_btn = Button.new()
+	_start_overlay.add_child(_start_btn)
+	_start_btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_start_btn.offset_top = -88.0
+	_start_btn.offset_bottom = -28.0
+	_start_btn.offset_left = -130.0
+	_start_btn.offset_right = 130.0
+	_start_btn.custom_minimum_size = Vector2(260, BrowserBridge.popup_button_height())
+	_start_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font() + 2)
+	_start_btn.text = "START"
+	_start_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.16, 0.72, 0.4)))
+	_start_btn.add_theme_color_override("font_color", Color(1, 1, 1))
+	_start_btn.pressed.connect(_on_start_pressed)
+
+
+func _enter_attract_mode() -> void:
+	game_started = false
+	is_dead = false
+	dying = false
+	game_over = false
+	coin_count = 0
+	_finish_data = {}
+	_finish_done = false
+	_finish_success = false
+	_finish_ui_finalized = false
+	_refresh_coin_hud()
+	if overlay:
+		overlay.visible = false
+	if _start_overlay:
+		_start_overlay.visible = true
+	if _start_btn:
+		_start_btn.disabled = false
+	var idle_anim: String = dance_anim if dance_anim != "" else run_anim
+	_play_anim(idle_anim, true)
+
+
+func _on_start_pressed() -> void:
+	if game_started or game_over or is_dead:
+		return
+	game_started = true
+	if _start_overlay:
+		_start_overlay.visible = false
+	_play_anim(run_anim, true)
+	var level := get_tree().get_first_node_in_group("level")
+	if level and level.has_method("begin_run"):
+		level.begin_run()
 
 
 func _make_hud_label(parent: Node, align: HorizontalAlignment, color: Color) -> Label:
@@ -237,6 +292,8 @@ func _on_profile_updated(_body: Dictionary) -> void:
 
 
 func _on_checkpoint_resolved(accepted: bool, data: Dictionary) -> void:
+	if is_dead or dying or game_over:
+		return
 	if accepted:
 		coin_count = int(data.get("run_total_coins", coin_count))
 		_refresh_coin_hud()
@@ -279,21 +336,35 @@ func _pill_style(c: Color) -> StyleBoxFlat:
 	sb.set_corner_radius_all(32)
 	return sb
 
-func _find_anim(targets: Array) -> String:
-	for target in targets:
-		var t: String = String(target).to_lower()
-		for a in anim_player.get_animation_list():
-			if t in String(a).to_lower():
-				return a
+func _bind_anims() -> void:
+	if anim_player == null:
+		return
+	run_anim = _find_anim(["running", "run"])
+	jump_anim = _find_anim(["jump"])
+	death_anim = _find_anim(["death", "fall"])
+	dance_anim = _find_anim(["danc", "dance"])
+
+
+func _find_anim(keywords: Array) -> String:
+	for anim_name in anim_player.get_animation_list():
+		var lower := String(anim_name).to_lower()
+		for keyword in keywords:
+			if String(keyword).to_lower() in lower:
+				return anim_name
 	return ""
 
-func _play_run() -> void:
-	if run_anim != "":
-		anim_player.play(run_anim)
+
+func _play_anim(anim_name: String, loop: bool) -> void:
+	if anim_name == "" or anim_player == null:
+		return
+	var anim: Animation = anim_player.get_animation(anim_name)
+	if anim:
+		anim.loop_mode = Animation.LOOP_LINEAR if loop else Animation.LOOP_NONE
+	anim_player.play(anim_name)
 
 # --- input: swipe to change lane / jump, tap to restart ---------------------
 func _unhandled_input(event: InputEvent) -> void:
-	if game_over:
+	if game_over or not game_started:
 		return
 
 	if event is InputEventScreenTouch:
@@ -350,7 +421,7 @@ func _on_restart_run_ready(success: bool, error_message: String) -> void:
 	_finish_success = false
 	_finish_done = true
 	_finish_data = {
-		"message": error_message if error_message != "" else "Could not start a new run.",
+		"message": GameSettings.USER_ERROR_MSG,
 	}
 	_finish_ui_finalized = false
 	_trigger_game_over()
@@ -365,10 +436,11 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if is_dead:
-		# Hit a rock: play the death animation and crumple onto the road,
-		# THEN show the game-over card (instead of freezing instantly).
 		if not dying:
 			_start_death()
+		return
+
+	if not game_started:
 		return
 
 	# coins-only score — distance does not count
@@ -397,7 +469,7 @@ func _physics_process(delta: float) -> void:
 		if level and level.has_method("get_segment_distance"):
 			MoveLog.log_jump_start(level.get_segment_distance())
 		if jump_anim != "":
-			anim_player.play(jump_anim)
+			_play_anim(jump_anim, false)
 	jump_requested = false
 
 	# gravity + vertical move (no floor collider, handled manually)
@@ -411,32 +483,38 @@ func _physics_process(delta: float) -> void:
 			var level := get_tree().get_first_node_in_group("level")
 			if level and level.has_method("get_segment_distance"):
 				MoveLog.log_jump_land(level.get_segment_distance())
-			_play_run()
+			_play_anim(run_anim, true)
 
 	global_transform.origin = pos
 
+func die() -> void:
+	if is_dead:
+		return
+	is_dead = true
+	var hitbox: Area3D = $collision_area
+	hitbox.monitoring = false
+	hitbox.monitorable = false
+	var level := get_tree().get_first_node_in_group("level")
+	if level and level.has_method("freeze_world"):
+		level.freeze_world()
+
+
 func _start_death() -> void:
 	dying = true
-	# submit_finish() runs in level.gd before is_dead — response may arrive first
+	# submit_finish() runs in level.gd before this — response may arrive first
 	if not _finish_done:
 		_finish_success = false
 		_finish_data = {}
 	_finish_ui_finalized = false
 	if death_audio:
 		death_audio.play()
+	_play_anim(death_anim, false)
+	var death_wait: float = 1.5
 	if death_anim != "":
 		var a := anim_player.get_animation(death_anim)
 		if a:
-			a.loop_mode = Animation.LOOP_NONE
-		anim_player.play(death_anim)
-	else:
-		# No death clip on this rig: just stop running and topple over on the road.
-		anim_player.stop()
-		var m := get_node_or_null("player") as Node3D
-		if m:
-			m.rotate_x(-PI / 2.0)
-	# Let the death play out on the road before the game-over card appears.
-	await get_tree().create_timer(1.2, true).timeout
+			death_wait = maxf(a.length, 0.5)
+	await get_tree().create_timer(death_wait, true).timeout
 	if RunSession.offline_mode:
 		_finish_success = true
 		_finish_data = {"final_coins": coin_count}
@@ -473,14 +551,14 @@ func _on_finish_wait_timeout() -> void:
 	_finish_done = true
 	_finish_data = {
 		"error": "timeout",
-		"message": "Server timed out — score could not be validated.",
+		"message": GameSettings.USER_ERROR_MSG,
 	}
 	_trigger_game_over()
 
 
 func _show_game_over_loading() -> void:
 	game_over = true
-	result_label.text = "Validating score..."
+	result_label.text = "Loading..."
 	if _play_again_btn:
 		_play_again_btn.disabled = true
 	if _menu_btn:
@@ -514,27 +592,16 @@ func _trigger_game_over() -> void:
 		if rank > 0:
 			lines.append("Rank #%d" % rank)
 	else:
-		lines.append(_finish_error_message())
-		lines.append("Tap Menu to go back.")
+		lines.append(GameSettings.USER_ERROR_MSG)
 
 	result_label.text = "\n".join(lines)
 	overlay.visible = true
 	overlay.modulate.a = 1.0
 
 
-func _finish_error_message() -> String:
-	if _finish_data.has("message"):
-		return str(_finish_data.get("message", ""))
-	var err := str(_finish_data.get("error", ""))
-	if err == "timeout":
-		return "Server timed out — score could not be validated."
-	if err == "connection_failed" or err == "request_failed":
-		return "Connection failed — could not validate score."
-	if err != "":
-		return "Score validation failed: %s" % err
-	return "Could not validate score. Try again later."
-
-func _on_collision_area_entered(area):
+func _on_collision_area_entered(area) -> void:
+	if not game_started or is_dead or dying or game_over:
+		return
 	var parent = area.get_parent()
 	if parent.is_in_group("coins"):
 		audio_player.play()

@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cb52avv4msiv0"
-path.s3tc="res://.godot/imported/PineTrees_PineTree_Leaves.png-5eb74dd1b5cf217083839d1160514a14.s3tc.ctex"
+uid="uid://7wr8thra6jhg"
+path.s3tc="res://.godot/imported/anime-girl_Ch46_1001_Diffuse_1.png-8bcfb0f27121a0acffd2e321e6302244.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "1fcde70607c3733f101d8d860b9944db"
+"md5": "28431fd922a911f507c7453a8262f444"
 }
 
 [deps]
 
-source_file="res://models/nature/PineTrees_PineTree_Leaves.png"
-dest_files=["res://.godot/imported/PineTrees_PineTree_Leaves.png-5eb74dd1b5cf217083839d1160514a14.s3tc.ctex"]
+source_file="res://models/anime-girl/anime-girl_Ch46_1001_Diffuse_1.png"
+dest_files=["res://.godot/imported/anime-girl_Ch46_1001_Diffuse_1.png-8bcfb0f27121a0acffd2e321e6302244.s3tc.ctex"]
 
 [params]
 

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dbxnkyrrtcyld"
-path="res://.godot/imported/Rogue.glb-a7d5030196495fb6867047be145fe593.scn"
+uid="uid://t2wm06kwj4un"
+path="res://.godot/imported/anime-girl.glb-6f0a315fe53b0794e456388d4e1f7f4d.scn"
 
 [deps]
 
-source_file="res://models/boy/Rogue.glb"
-dest_files=["res://.godot/imported/Rogue.glb-a7d5030196495fb6867047be145fe593.scn"]
+source_file="res://models/anime-girl/anime-girl.glb"
+dest_files=["res://.godot/imported/anime-girl.glb-6f0a315fe53b0794e456388d4e1f7f4d.scn"]
 
 [params]
 
