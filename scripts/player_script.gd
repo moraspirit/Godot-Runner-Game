@@ -30,6 +30,8 @@ var game_over: bool = false
 var coin_count: int = 0
 
 var coin_label: Label
+var _name_label: Label
+var _best_label: Label
 var overlay: Control
 var result_label: Label
 var hint_label: Label
@@ -62,6 +64,9 @@ func _ready() -> void:
 		RunSession.checkpoint_resolved.connect(_on_checkpoint_resolved)
 	if not RunSession.finish_resolved.is_connected(_on_finish_resolved):
 		RunSession.finish_resolved.connect(_on_finish_resolved)
+	if not AuthSession.profile_updated.is_connected(_on_profile_updated):
+		AuthSession.profile_updated.connect(_on_profile_updated)
+	call_deferred("_layout_hud_panels")
 	_refresh_coin_hud()
 
 # Load the boy model, turn it to face the camera, and wire its AnimationPlayer.
@@ -75,33 +80,19 @@ func _spawn_character() -> void:
 	anim_player = model.get_node("AnimationPlayer")
 
 func _setup_hud() -> void:
-	# Put the HUD on a CanvasLayer so it always fills the screen.
 	var layer := CanvasLayer.new()
+	layer.layer = 100
 	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 
-	# ---- coin chip (top-left): rounded panel + gold coin icon + count ----
-	var coin_panel := Panel.new()
-	layer.add_child(coin_panel)
-	coin_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coin_panel.position = Vector2(18, 18)
-	coin_panel.size = Vector2(200, 68)
-	coin_panel.add_theme_stylebox_override("panel", _chip_style())
-
-	var coin_icon := Panel.new()
-	coin_panel.add_child(coin_icon)
-	coin_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coin_icon.position = Vector2(13, 13)
-	coin_icon.size = Vector2(32, 32)
-	coin_icon.add_theme_stylebox_override("panel", _circle_style(Color(1, 0.82, 0.16)))
-
-	coin_label = Label.new()
-	coin_panel.add_child(coin_label)
-	coin_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coin_label.position = Vector2(58, 9)
-	coin_label.add_theme_font_size_override("font_size", BrowserBridge.hud_font())
-	coin_label.add_theme_color_override("font_color", Color(1, 0.96, 0.78))
+	# Top bar — text only, no background panels.
+	_name_label = _make_hud_label(layer, HORIZONTAL_ALIGNMENT_LEFT, Color(0.9, 0.95, 1.0))
+	coin_label = _make_hud_label(layer, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.96, 0.78))
+	coin_label.add_theme_font_size_override("font_size", BrowserBridge.hud_font() + 2)
 	coin_label.text = "0"
+	_best_label = _make_hud_label(layer, HORIZONTAL_ALIGNMENT_RIGHT, Color(1, 0.88, 0.42))
+
+	_layout_hud_panels()
 
 	# ---- controls hint (bottom-center, fades out) ----
 	hint_label = Label.new()
@@ -194,8 +185,66 @@ func _setup_hud() -> void:
 	menu_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.12, 0.14, 0.2)))
 	menu_btn.pressed.connect(_go_menu)
 
+
+func _make_hud_label(parent: Node, align: HorizontalAlignment, color: Color) -> Label:
+	var label := Label.new()
+	parent.add_child(label)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.add_theme_font_size_override("font_size", BrowserBridge.hud_font())
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	label.add_theme_constant_override("outline_size", 5)
+	return label
+
+
+func _layout_hud_panels() -> void:
+	var width := get_viewport().get_visible_rect().size.x
+	if width <= 0.0:
+		width = float(get_viewport().size.x)
+	if width <= 0.0:
+		width = 720.0
+	var top := 18.0
+	var height := 44.0
+	var side_w := 220.0
+	var coin_w := 120.0
+	if _name_label:
+		_name_label.position = Vector2(18.0, top)
+		_name_label.size = Vector2(side_w, height)
+	if coin_label:
+		coin_label.position = Vector2((width - coin_w) * 0.5, top)
+		coin_label.size = Vector2(coin_w, height)
+	if _best_label:
+		_best_label.position = Vector2(width - side_w - 18.0, top)
+		_best_label.size = Vector2(side_w, height)
+
+
 func _refresh_coin_hud() -> void:
-	coin_label.text = str(coin_count)
+	if coin_label:
+		coin_label.text = str(coin_count)
+	var logged_in := AuthSession.is_logged_in()
+	if _name_label:
+		_name_label.visible = logged_in
+	if _best_label:
+		_best_label.visible = logged_in
+	if not logged_in:
+		return
+	var player_name := AuthSession.username.strip_edges()
+	if player_name == "":
+		player_name = AuthSession.index_number.strip_edges()
+	if player_name == "":
+		player_name = "Player"
+	if _name_label:
+		_name_label.text = player_name
+	if _best_label:
+		_best_label.text = "Best %d" % AuthSession.best_coins
+
+
+func _on_profile_updated(_body: Dictionary) -> void:
+	_refresh_coin_hud()
 
 
 func _on_checkpoint_resolved(accepted: bool, data: Dictionary) -> void:
@@ -207,25 +256,10 @@ func _on_checkpoint_resolved(accepted: bool, data: Dictionary) -> void:
 func _on_finish_resolved(_success: bool, data: Dictionary) -> void:
 	_finish_data = data
 	_finish_done = true
+	if data.has("best_coins"):
+		AuthSession.best_coins = int(data.get("best_coins", AuthSession.best_coins))
+	_refresh_coin_hud()
 
-
-func _chip_style() -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.02, 0.03, 0.04, 0.62)
-	sb.set_corner_radius_all(16)
-	sb.set_border_width_all(1)
-	sb.border_color = Color(1, 1, 1, 0.16)
-	sb.shadow_size = 6
-	sb.shadow_color = Color(0, 0, 0, 0.35)
-	return sb
-
-func _circle_style(c: Color) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = c
-	sb.set_corner_radius_all(16)
-	sb.set_border_width_all(2)
-	sb.border_color = Color(1, 0.95, 0.6, 0.9)
-	return sb
 
 func _card_style() -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
@@ -434,9 +468,4 @@ func _on_collision_area_entered(area):
 			var lane: int = int(parent.get_meta("spawn_lane", current_lane))
 			var dist: float = float(parent.get_meta("map_distance", level.get_segment_distance()))
 			MoveLog.log_coin(oid, lane, dist)
-		# little pop on the counter for feedback
-		coin_label.pivot_offset = coin_label.size * 0.5
-		var t := create_tween()
-		t.tween_property(coin_label, "scale", Vector2(1.5, 1.5), 0.08)
-		t.tween_property(coin_label, "scale", Vector2(1, 1), 0.12)
 		parent.queue_free()

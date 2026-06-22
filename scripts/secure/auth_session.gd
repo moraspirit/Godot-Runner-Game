@@ -3,6 +3,7 @@ extends Node
 ## Stores JWT from register/login. Persists in browser for up to 60 days.
 
 signal auth_ready(logged_in: bool)
+signal profile_updated(body: Dictionary)
 
 const STORAGE_KEY: String = "epilogue_runner_auth"
 const SESSION_SECONDS: int = 60 * 24 * 60 * 60  # 60 days
@@ -40,6 +41,7 @@ func set_auth(body: Dictionary) -> void:
 	username = str(body.get("username", body.get("name", username)))
 	best_coins = int(body.get("best_coins", best_coins))
 	_persist()
+	profile_updated.emit(body)
 
 
 func clear() -> void:

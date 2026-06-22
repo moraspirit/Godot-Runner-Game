@@ -16,6 +16,8 @@ var _login_btn: Button
 var _logout_btn: Button
 var _title_label: Label
 var _subtitle_label: Label
+var _menu_name_label: Label
+var _menu_best_label: Label
 var _btn_font: int = 42
 var _title_font: int = 92
 
@@ -31,6 +33,10 @@ func _ready() -> void:
 		call_deferred("_maybe_show_auth")
 	if not ApiClient.request_finished.is_connected(_on_api_leaderboard):
 		ApiClient.request_finished.connect(_on_api_leaderboard)
+	if not AuthSession.profile_updated.is_connected(_on_profile_updated):
+		AuthSession.profile_updated.connect(_on_profile_updated)
+	if not get_viewport().size_changed.is_connected(_layout_menu_top_bar):
+		get_viewport().size_changed.connect(_layout_menu_top_bar)
 
 
 func _apply_responsive_scale() -> void:
@@ -115,6 +121,72 @@ func _build_ui() -> void:
 	add_child(_auth_panel)
 	_auth_panel.visible = false
 	_auth_panel.logged_in.connect(_on_logged_in)
+
+	_build_menu_top_bar()
+
+
+func _build_menu_top_bar() -> void:
+	_menu_name_label = _menu_hud_label(HORIZONTAL_ALIGNMENT_LEFT, Color(0.9, 0.95, 1.0))
+	add_child(_menu_name_label)
+
+	_menu_best_label = _menu_hud_label(HORIZONTAL_ALIGNMENT_RIGHT, Color(1, 0.88, 0.42))
+	add_child(_menu_best_label)
+
+	call_deferred("_layout_menu_top_bar")
+	_refresh_menu_top_bar()
+
+
+func _layout_menu_top_bar() -> void:
+	if _menu_name_label == null:
+		return
+	var width := get_viewport().get_visible_rect().size.x
+	if width <= 0.0:
+		width = float(get_viewport().size.x)
+	if width <= 0.0:
+		width = 720.0
+	var top := 18.0
+	var height := 44.0
+	var side_w := 220.0
+	_menu_name_label.position = Vector2(18.0, top)
+	_menu_name_label.size = Vector2(side_w, height)
+	_menu_best_label.position = Vector2(width - side_w - 18.0, top)
+	_menu_best_label.size = Vector2(side_w, height)
+
+
+func _refresh_menu_top_bar() -> void:
+	if _menu_name_label == null:
+		return
+	var logged_in := AuthSession.is_logged_in()
+	_menu_name_label.visible = logged_in
+	_menu_best_label.visible = logged_in
+	if not logged_in:
+		return
+	var player_name := AuthSession.username.strip_edges()
+	if player_name == "":
+		player_name = AuthSession.index_number.strip_edges()
+	if player_name == "":
+		player_name = "Player"
+	_menu_name_label.text = player_name
+	_menu_best_label.text = "Best %d" % AuthSession.best_coins
+
+
+func _menu_hud_label(align: HorizontalAlignment, color: Color) -> Label:
+	var label := Label.new()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 20
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.add_theme_font_size_override("font_size", BrowserBridge.hud_font())
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	label.add_theme_constant_override("outline_size", 5)
+	return label
+
+
+func _on_profile_updated(_body: Dictionary) -> void:
+	_refresh_menu_top_bar()
 
 
 func _build_settings_panel() -> void:
@@ -215,6 +287,7 @@ func _refresh_auth_ui() -> void:
 	if _play_btn:
 		_play_btn.disabled = needs_auth
 		_play_btn.text = "LOGIN TO PLAY" if needs_auth else "PLAY"
+	_refresh_menu_top_bar()
 
 
 func _show_auth_panel() -> void:
@@ -259,8 +332,11 @@ func _on_api_leaderboard(path: String, success: bool, _status: int, body: Dictio
 	elif path == "/v1/leaderboard/me":
 		if success:
 			_lb_me = body
+			if body.has("name"):
+				AuthSession.username = str(body.get("name", AuthSession.username))
 			if body.has("best_coins"):
 				AuthSession.best_coins = int(body.get("best_coins", AuthSession.best_coins))
+			_refresh_menu_top_bar()
 		_lb_pending -= 1
 		_try_show_leaderboard()
 
