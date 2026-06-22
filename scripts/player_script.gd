@@ -30,7 +30,6 @@ var game_over: bool = false
 var coin_count: int = 0
 
 var coin_label: Label
-var score_label: Label
 var overlay: Control
 var result_label: Label
 var hint_label: Label
@@ -103,28 +102,6 @@ func _setup_hud() -> void:
 	coin_label.add_theme_font_size_override("font_size", BrowserBridge.hud_font())
 	coin_label.add_theme_color_override("font_color", Color(1, 0.96, 0.78))
 	coin_label.text = "0"
-
-	# ---- score chip (top-right) ----
-	var score_panel := Panel.new()
-	layer.add_child(score_panel)
-	score_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	score_panel.anchor_left = 1.0
-	score_panel.anchor_right = 1.0
-	score_panel.offset_left = -240.0
-	score_panel.offset_right = -18.0
-	score_panel.offset_top = 18.0
-	score_panel.offset_bottom = 86.0
-	score_panel.add_theme_stylebox_override("panel", _chip_style())
-
-	score_label = Label.new()
-	score_panel.add_child(score_label)
-	score_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	score_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	score_label.add_theme_font_size_override("font_size", BrowserBridge.hud_font() - 2)
-	score_label.add_theme_color_override("font_color", Color(0.85, 0.93, 1.0))
-	score_label.text = "COINS 0"
 
 	# ---- controls hint (bottom-center, fades out) ----
 	hint_label = Label.new()
@@ -219,7 +196,6 @@ func _setup_hud() -> void:
 
 func _refresh_coin_hud() -> void:
 	coin_label.text = str(coin_count)
-	score_label.text = "COINS %d" % coin_count
 
 
 func _on_checkpoint_resolved(accepted: bool, data: Dictionary) -> void:
@@ -436,13 +412,9 @@ func _trigger_game_over() -> void:
 	if _finish_data.has("final_coins"):
 		display_coins = int(_finish_data.get("final_coins", coin_count))
 	lines.append("Coins %d" % display_coins)
-	if _finish_data.has("rank") or _finish_data.has("best_coins"):
-		var rank: int = int(_finish_data.get("rank", 0))
-		var best: int = int(_finish_data.get("best_coins", AuthSession.best_coins))
-		if rank > 0:
-			lines.append("Rank #%d  ·  Best %d" % [rank, best])
-		else:
-			lines.append("Best %d coins" % best)
+	var rank: int = int(_finish_data.get("rank", 0))
+	if rank > 0:
+		lines.append("Rank #%d" % rank)
 	result_label.text = "\n".join(lines)
 	overlay.visible = true
 	overlay.modulate.a = 0.0

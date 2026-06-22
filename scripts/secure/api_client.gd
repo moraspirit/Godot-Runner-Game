@@ -3,7 +3,8 @@ extends Node
 signal request_finished(path: String, success: bool, status: int, body: Dictionary)
 
 var _http: HTTPRequest
-var _pending_paths: Array[String] = []
+var _queue: Array[Dictionary] = []
+var _in_flight: Dictionary = {}
 
 
 func _ready() -> void:
@@ -29,14 +30,7 @@ func post_with_jwt(path: String, body_dict: Dictionary = {}) -> void:
 
 func post_with_headers(path: String, body_dict: Dictionary, headers: PackedStringArray) -> void:
 	var body := JSON.stringify(body_dict)
-	var url := _full_url(path)
-	_log("POST %s -> %s" % [path, url])
-	_pending_paths.append(path)
-	var err := _http.request(url, headers, HTTPClient.METHOD_POST, body)
-	if err != OK:
-		_pop_pending()
-		_log("POST %s failed to start (err %d)" % [path, err])
-		request_finished.emit(path, false, 0, {"error": "request_failed", "code": err})
+	_enqueue(path, HTTPClient.METHOD_POST, headers, body)
 
 
 func post_signed(path: String, body_dict: Dictionary) -> void:
@@ -49,9 +43,6 @@ func post_signed(path: String, body_dict: Dictionary) -> void:
 	var ts := str(int(Time.get_unix_time_from_system() * 1000.0))
 	var nonce := _uuid()
 	var sig := HmacSign.sign(RunSession.signing_secret, "POST", path, ts, nonce, body)
-	var url := _full_url(path)
-	_log("POST %s (signed) -> %s" % [path, url])
-	_pending_paths.append(path)
 	var headers: PackedStringArray = [
 		"Content-Type: application/json",
 		"X-Session-Id: " + RunSession.session_id,
@@ -59,25 +50,47 @@ func post_signed(path: String, body_dict: Dictionary) -> void:
 		"X-Nonce: " + nonce,
 		"X-Signature: " + sig,
 	]
-	var err := _http.request(url, headers, HTTPClient.METHOD_POST, body)
-	if err != OK:
-		_pop_pending()
-		_log("POST %s failed to start (err %d)" % [path, err])
-		request_finished.emit(path, false, 0, {"error": "request_failed", "code": err})
+	_enqueue(path, HTTPClient.METHOD_POST, headers, body)
 
 
 func get_json(path: String) -> void:
-	var url := _full_url(path)
-	_log("GET %s -> %s" % [path, url])
-	_pending_paths.append(path)
 	var headers: PackedStringArray = []
 	if AuthSession.is_logged_in():
 		headers.append("Authorization: Bearer " + AuthSession.token)
-	var err := _http.request(url, headers)
+	_enqueue(path, HTTPClient.METHOD_GET, headers, "")
+
+
+func _enqueue(path: String, method: int, headers: PackedStringArray, body: String) -> void:
+	var url := _full_url(path)
+	var method_name := "GET" if method == HTTPClient.METHOD_GET else "POST"
+	_log("%s %s -> %s" % [method_name, path, url])
+	_queue.append({
+		"path": path,
+		"url": url,
+		"method": method,
+		"headers": headers,
+		"body": body,
+	})
+	_pump_queue()
+
+
+func _pump_queue() -> void:
+	if not _in_flight.is_empty() or _queue.is_empty():
+		return
+
+	_in_flight = _queue.pop_front()
+	var err := _http.request(
+		_in_flight["url"],
+		_in_flight["headers"],
+		_in_flight["method"],
+		_in_flight["body"],
+	)
 	if err != OK:
-		_pop_pending()
-		_log("GET %s failed to start (err %d)" % [path, err])
+		var path: String = _in_flight.get("path", "")
+		_log("%s failed to start (err %d)" % [path, err])
+		_in_flight = {}
 		request_finished.emit(path, false, 0, {"error": "request_failed", "code": err})
+		_pump_queue()
 
 
 func _full_url(path: String) -> String:
@@ -88,7 +101,7 @@ func _full_url(path: String) -> String:
 
 
 func _on_request_completed(result: int, code: int, _headers: PackedStringArray, body_bytes: PackedByteArray) -> void:
-	var path := _pop_pending()
+	var path: String = _in_flight.get("path", "")
 	var parsed: Dictionary = {}
 	var raw := ""
 	if body_bytes.size() > 0:
@@ -106,13 +119,9 @@ func _on_request_completed(result: int, code: int, _headers: PackedStringArray, 
 		else:
 			_log("FAIL %s result=%d HTTP %d -> %s" % [path, result, code, _truncate(raw)])
 
+	_in_flight = {}
 	request_finished.emit(path, ok, code, parsed)
-
-
-func _pop_pending() -> String:
-	if _pending_paths.is_empty():
-		return ""
-	return _pending_paths.pop_front()
+	_pump_queue()
 
 
 func _log(msg: String) -> void:

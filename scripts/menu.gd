@@ -11,7 +11,6 @@ var _settings_panel: PanelContainer
 var _settings_box: VBoxContainer
 var _sound_btn: Button
 var _play_btn: Button
-var _user_label: Label
 var _auth_panel: Control
 var _login_btn: Button
 var _logout_btn: Button
@@ -65,22 +64,13 @@ func _build_ui() -> void:
 	gradient.color = Color(0.12, 0.04, 0.18, 0.42)
 	gradient.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_user_label = Label.new()
-	add_child(_user_label)
-	_user_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_user_label.offset_top = 16
-	_user_label.offset_bottom = 52
-	_user_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_user_label.add_theme_font_size_override("font_size", BrowserBridge.menu_caption_font())
-	_user_label.add_theme_color_override("font_color", Color(0.75, 0.82, 0.95, 0.9))
-
 	var margin := MarginContainer.new()
 	add_child(margin)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var edge := 20 if BrowserBridge.is_mobile_viewport() else 28
 	margin.add_theme_constant_override("margin_left", edge)
 	margin.add_theme_constant_override("margin_right", edge)
-	margin.add_theme_constant_override("margin_top", 56)
+	margin.add_theme_constant_override("margin_top", 40)
 	margin.add_theme_constant_override("margin_bottom", 40)
 
 	var root := VBoxContainer.new()
@@ -225,12 +215,6 @@ func _refresh_auth_ui() -> void:
 	if _play_btn:
 		_play_btn.disabled = needs_auth
 		_play_btn.text = "LOGIN TO PLAY" if needs_auth else "PLAY"
-	if AuthSession.is_logged_in():
-		_user_label.text = "%s  ·  Best %d coins" % [AuthSession.username, AuthSession.best_coins]
-	elif SimConstants.API_BASE != "":
-		_user_label.text = "Login required to play online"
-	else:
-		_user_label.text = "Offline mode"
 
 
 func _show_auth_panel() -> void:
@@ -240,7 +224,6 @@ func _show_auth_panel() -> void:
 
 func _on_logged_in() -> void:
 	_refresh_auth_ui()
-	ApiClient.get_json("/v1/leaderboard/me")
 
 
 func _on_logout() -> void:
@@ -278,7 +261,6 @@ func _on_api_leaderboard(path: String, success: bool, _status: int, body: Dictio
 			_lb_me = body
 			if body.has("best_coins"):
 				AuthSession.best_coins = int(body.get("best_coins", AuthSession.best_coins))
-				_refresh_auth_ui()
 		_lb_pending -= 1
 		_try_show_leaderboard()
 
@@ -289,24 +271,25 @@ func _try_show_leaderboard() -> void:
 	var lines: PackedStringArray = PackedStringArray()
 	lines.append("Top 10")
 	lines.append("")
-	for row in _lb_top:
-		if row is Dictionary:
-			lines.append("#%s  %s  —  %d coins" % [
-				row.get("rank", "?"),
-				row.get("name", row.get("username", "?")),
-				row.get("coins", 0),
-			])
+	if _lb_top.is_empty():
+		lines.append("No scores yet.")
+	else:
+		for row in _lb_top:
+			if row is Dictionary:
+				lines.append("#%d  %s  —  %d coins" % [
+					int(row.get("rank", 0)),
+					str(row.get("name", row.get("username", "?"))),
+					int(row.get("coins", 0)),
+				])
 	if AuthSession.is_logged_in() and not _lb_me.is_empty():
 		lines.append("")
+		lines.append("Your score")
 		var rank: int = int(_lb_me.get("rank", 0))
+		var best: int = int(_lb_me.get("best_coins", _lb_me.get("coins", 0)))
 		if rank > 0:
-			lines.append("You: #%d  ·  %d coins (best %d)" % [
-				rank,
-				int(_lb_me.get("coins", 0)),
-				int(_lb_me.get("best_coins", 0)),
-			])
+			lines.append("Rank #%d  ·  %d coins" % [rank, best])
 		else:
-			lines.append("You: no rank yet — collect coins!")
+			lines.append("No rank yet — play and collect coins!")
 	_show_overlay("Leaderboard", "\n".join(lines))
 	_lb_top = []
 	_lb_me = {}
