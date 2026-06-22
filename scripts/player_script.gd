@@ -35,7 +35,6 @@ var _name_label: Label
 var _best_label: Label
 var overlay: Control
 var result_label: Label
-var hint_label: Label
 
 var _finish_data: Dictionary = {}
 var _finish_done: bool = false
@@ -103,26 +102,6 @@ func _setup_hud() -> void:
 	_best_label = _make_hud_label(layer, HORIZONTAL_ALIGNMENT_RIGHT, Color(1, 0.88, 0.42))
 
 	_layout_hud_panels()
-
-	# ---- controls hint (bottom-center, fades out) ----
-	hint_label = Label.new()
-	layer.add_child(hint_label)
-	hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint_label.anchor_top = 1.0
-	hint_label.anchor_bottom = 1.0
-	hint_label.anchor_right = 1.0
-	hint_label.offset_top = -90.0
-	hint_label.offset_bottom = -40.0
-	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint_label.add_theme_font_size_override("font_size", BrowserBridge.hud_hint_font())
-	hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.92))
-	hint_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	hint_label.add_theme_constant_override("outline_size", 5)
-	hint_label.text = "Swipe  <  >  lane     Swipe  ^  jump     Collect coins!"
-	var tw := create_tween()
-	tw.tween_interval(4.0)
-	tw.tween_property(hint_label, "modulate:a", 0.0, 1.2)
 
 	# ---- full-screen game-over overlay (dim + centered card) ----
 	overlay = Control.new()
