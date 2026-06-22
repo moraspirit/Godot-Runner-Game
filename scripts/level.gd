@@ -248,10 +248,9 @@ func _lane_index_from_x(x: float) -> int:
 	return best
 
 
-func _on_checkpoint_resolved(accepted: bool, data: Dictionary) -> void:
+func _on_checkpoint_resolved(accepted: bool, _data: Dictionary) -> void:
 	_checkpoint_busy = false
 	if not accepted:
-		push_warning("Checkpoint rejected: %s" % str(data))
 		return
 	if player == null or player.is_dead or player.game_over:
 		return

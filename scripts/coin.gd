@@ -18,5 +18,4 @@ func _process(delta):
 	rotate_y(5 * delta)
 	
 func timer_timeout():
-	#print("coin destroyed")
 	queue_free()

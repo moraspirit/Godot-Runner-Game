@@ -23,7 +23,6 @@ func _process(delta):
 
 
 func timer_timeout():
-	#print("tree destroyed")
 	queue_free()
 
 

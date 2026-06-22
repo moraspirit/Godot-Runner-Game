@@ -3,11 +3,10 @@
 # Setup (once):
 #   1. Repo → Settings → Pages → Source: GitHub Actions
 #   2. Repo → Settings → Secrets and variables → Actions → Variables:
-#        API_BASE_URL = https://api.yoursite.com   (your Docker backend URL)
+#        API_BASE_URL = https://api.yoursite.com   (your production backend, HTTPS)
 #
-# Your backend CORS_ORIGIN must match this site, e.g.:
-#   https://nipunsgeeth.github.io/Godot-Runner-Game
-# or your custom domain.
+# Backend CORS_ORIGIN must match this site origin (no path), e.g.:
+#   https://moraspirit.github.io
 
 name: Deploy GitHub Pages
 
@@ -57,6 +56,13 @@ jobs:
             echo "::error::Set repository variable API_BASE_URL (e.g. https://api.yoursite.com)"
             exit 1
           fi
+          case "$API_BASE_URL" in
+            https://*) ;;
+            *)
+              echo "::error::API_BASE_URL must use HTTPS in production (got: $API_BASE_URL)"
+              exit 1
+              ;;
+          esac
           python3 <<'PY'
           import re
           from pathlib import Path

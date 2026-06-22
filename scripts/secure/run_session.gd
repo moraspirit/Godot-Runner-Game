@@ -19,8 +19,7 @@ var _waiting_checkpoint: bool = false
 func _ready() -> void:
 	offline_mode = SimConstants.API_BASE.is_empty()
 	ApiClient.request_finished.connect(_on_api_response)
-	if SimConstants.DEBUG_API:
-		print("[RunSession] API_BASE=%s offline=%s" % [SimConstants.API_BASE, offline_mode])
+	_log("API_BASE=%s offline=%s" % [SimConstants.API_BASE, offline_mode])
 
 
 func has_session() -> bool:
@@ -74,9 +73,7 @@ func _start_offline_run(error_hint: String) -> void:
 	run_total_coins = 0
 	run_active = true
 	if error_hint != "":
-		push_warning("Secure run: offline fallback — %s" % error_hint)
-		if SimConstants.DEBUG_API:
-			print("[RunSession] offline fallback: ", error_hint)
+		_log("offline fallback: %s" % error_hint)
 	run_ready.emit(true, error_hint)
 
 
@@ -96,13 +93,13 @@ func ensure_segment_for_level(initial_lane: int) -> void:
 		if SimConstants.API_BASE.is_empty():
 			_start_offline_run("level started without active run")
 		else:
-			push_error("RunSession: no active run — press PLAY from menu first")
+			_log("no active run — press PLAY from menu first")
 			return
 	MoveLog.reset(segment_index, current_seed, initial_lane)
 
 
 func advance_offline_segment(payload: Dictionary) -> void:
-	print("[RunSession] checkpoint (offline): ", JSON.stringify(payload))
+	_log("checkpoint (offline): %s" % JSON.stringify(payload))
 	segment_index += 1
 	current_seed = _random_segment_seed()
 	run_total_coins += _count_coins_in_payload(payload)
@@ -123,9 +120,7 @@ func submit_checkpoint(final_distance: float) -> void:
 		advance_offline_segment(payload)
 		return
 	_waiting_checkpoint = true
-	_log("checkpoint segment %d dist=%.1f" % [segment_index, final_distance])
-	if SimConstants.DEBUG_API:
-		print("[RunSession] checkpoint payload: ", JSON.stringify(payload))
+	_log("checkpoint segment %d dist=%.1f payload=%s" % [segment_index, final_distance, JSON.stringify(payload)])
 	ApiClient.post_signed("/v1/run/checkpoint", {
 		"run_id": run_id,
 		"move_log": payload,
@@ -135,12 +130,10 @@ func submit_checkpoint(final_distance: float) -> void:
 func submit_finish(final_distance: float, end_reason: String = "collision") -> void:
 	var payload := MoveLog.to_dict(end_reason, final_distance)
 	if offline_mode:
-		print("[RunSession] finish (offline): ", JSON.stringify(payload))
+		_log("finish (offline): %s" % JSON.stringify(payload))
 		run_active = false
 		return
-	_log("finish %s dist=%.1f" % [end_reason, final_distance])
-	if SimConstants.DEBUG_API:
-		print("[RunSession] finish payload: ", JSON.stringify(payload))
+	_log("finish %s dist=%.1f payload=%s" % [end_reason, final_distance, JSON.stringify(payload)])
 	ApiClient.post_signed("/v1/run/finish", {
 		"run_id": run_id,
 		"move_log": payload,
@@ -189,7 +182,7 @@ func _on_api_response(path: String, success: bool, status: int, body: Dictionary
 			_log("checkpoint accepted coins=%d next_seed=%d" % [run_total_coins, current_seed])
 			checkpoint_resolved.emit(true, body)
 		else:
-			push_warning("Checkpoint rejected: %s" % str(body))
+			_log("checkpoint rejected: %s" % str(body))
 			checkpoint_resolved.emit(false, body)
 		return
 
@@ -206,7 +199,7 @@ func _on_api_response(path: String, success: bool, status: int, body: Dictionary
 			var err_body := body.duplicate()
 			if not err_body.has("message"):
 				err_body["message"] = _format_finish_error(success, status, body)
-			push_warning("Finish rejected: %s" % str(err_body))
+			_log("finish rejected: %s" % str(err_body))
 			finish_resolved.emit(false, err_body)
 
 
