@@ -26,6 +26,8 @@ const LAKE_SHRUB_HEIGHT: float = 1.4
 static func create_random(rng: RandomNumberGenerator, kind: String = "") -> Node3D:
 	if kind == "":
 		kind = _pick_kind(rng)
+	elif not MobilePerf.allow_heavy_props() and kind in ["car", "human", "river", "bridge", "boat"]:
+		kind = "shed" if rng.randf() < 0.5 else "lamp"
 	match kind:
 		"building":
 			return _make_building(rng, rng.randi_range(2, 4))
@@ -57,7 +59,11 @@ static func create_random(rng: RandomNumberGenerator, kind: String = "") -> Node
 
 static func create_boat_yard_lake(rng: RandomNumberGenerator) -> Node3D:
 	var root := Node3D.new()
-	var water_mat: Material = load("res://models/water_shadermat.tres") as Material
+	var water_mat: Material = (
+		MobilePerf.simple_water_material()
+		if not MobilePerf.allow_heavy_props()
+		else load("res://models/water_shadermat.tres") as Material
+	)
 	var lake_w: float = 22.0
 	var lake_l: float = 100.0
 	var near_shore: float = 1.6
@@ -315,6 +321,12 @@ static func _make_vehicle(rng: RandomNumberGenerator) -> Node3D:
 
 
 static func _pick_kind(rng: RandomNumberGenerator) -> String:
+	if not MobilePerf.allow_heavy_props():
+		var lite: Array = [
+			"building", "building", "shop", "shed", "shed",
+			"lamp", "bench", "cluster",
+		]
+		return lite[rng.randi() % lite.size()]
 	var kinds: Array = [
 		"building", "building", "building", "building", "building",
 		"tower", "tower", "shop", "shop", "shed", "shed",
@@ -470,7 +482,11 @@ static func _make_human(rng: RandomNumberGenerator) -> Node3D:
 
 static func _make_river_strip(rng: RandomNumberGenerator) -> Node3D:
 	var root := Node3D.new()
-	var water_mat: Material = load("res://models/water_shadermat.tres") as Material
+	var water_mat: Material = (
+		MobilePerf.simple_water_material()
+		if not MobilePerf.allow_heavy_props()
+		else load("res://models/water_shadermat.tres") as Material
+	)
 	var length: float = rng.randf_range(14.0, 24.0)
 	var width: float = rng.randf_range(2.8, 4.5)
 	var mi := MeshInstance3D.new()

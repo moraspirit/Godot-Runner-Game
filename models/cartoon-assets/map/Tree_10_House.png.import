@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://d36fq2kahm1ns"
 path.s3tc="res://.godot/imported/Tree_10_House.png-7acefd42d1c6c325eae39d14be1213e4.s3tc.ctex"
+path.etc2="res://.godot/imported/Tree_10_House.png-7acefd42d1c6c325eae39d14be1213e4.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://models/cartoon-assets/map/Tree_10_House.png"
-dest_files=["res://.godot/imported/Tree_10_House.png-7acefd42d1c6c325eae39d14be1213e4.s3tc.ctex"]
+dest_files=["res://.godot/imported/Tree_10_House.png-7acefd42d1c6c325eae39d14be1213e4.s3tc.ctex", "res://.godot/imported/Tree_10_House.png-7acefd42d1c6c325eae39d14be1213e4.etc2.ctex"]
 
 [params]
 

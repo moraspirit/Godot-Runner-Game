@@ -5,11 +5,10 @@ const WorldScroller = preload("res://scripts/world_scroller.gd")
 
 func _ready() -> void:
 	add_to_group("coins")
+	set_process(false)
+	WorldScroller.register_coin(self)
+	tree_exiting.connect(_on_tree_exiting)
 
 
-func _process(delta: float) -> void:
-	if not WorldScroller.is_world_active(get_tree()):
-		return
-	WorldScroller.scroll(self, delta)
-	rotate_y(5.0 * delta)
-	WorldScroller.despawn_if_passed(self, get_tree())
+func _on_tree_exiting() -> void:
+	WorldScroller.unregister_coin(self)

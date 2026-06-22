@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cy7tp26narcq1"
 path.s3tc="res://.godot/imported/carpet_tile.png-68a2dc7ca49ff94003058a0ba9c92074.s3tc.ctex"
+path.etc2="res://.godot/imported/carpet_tile.png-68a2dc7ca49ff94003058a0ba9c92074.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://models/textures/carpet_tile.png"
-dest_files=["res://.godot/imported/carpet_tile.png-68a2dc7ca49ff94003058a0ba9c92074.s3tc.ctex"]
+dest_files=["res://.godot/imported/carpet_tile.png-68a2dc7ca49ff94003058a0ba9c92074.s3tc.ctex", "res://.godot/imported/carpet_tile.png-68a2dc7ca49ff94003058a0ba9c92074.etc2.ctex"]
 
 [params]
 

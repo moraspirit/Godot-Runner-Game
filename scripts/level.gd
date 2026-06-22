@@ -49,7 +49,6 @@ var startz: float = -WorldScroller.SPAWN_AHEAD
 
 var road_spawnx: Array = [-2, 0, 2]
 
-const FENCE_COUNT: int = 64
 const FENCE_SPACING: float = 1.5
 var fences: Array = []
 
@@ -91,10 +90,15 @@ var _bgm_player: AudioStreamPlayer
 
 func _ready():
 	add_to_group("level")
+	WorldScroller.reset_registry()
+	MobilePerf.apply_render_budget(get_viewport())
+	if MobilePerf.active:
+		_apply_mobile_graphics()
 	_load_nature()
 	_setup_road_segments()
 	_setup_signs()
-	spawn_env_timer.wait_time = randf_range(0.55, 0.85)
+	var env_range := MobilePerf.env_timer_range()
+	spawn_env_timer.wait_time = randf_range(env_range.x, env_range.y)
 
 	if SimConstants.SECURE_SPAWNS:
 		spawn_timer.stop()
@@ -108,8 +112,9 @@ func _ready():
 
 	var z_start: float = 6.0
 	var z_end: float = -WorldScroller.SPAWN_AHEAD
-	var z_step: float = (z_start - z_end) / float(maxi(FENCE_COUNT - 1, 1))
-	for i in FENCE_COUNT:
+	var fence_count: int = MobilePerf.fence_count()
+	var z_step: float = (z_start - z_end) / float(maxi(fence_count - 1, 1))
+	for i in fence_count:
 		var fence_inst = fence.instantiate()
 		fence_inst.connect("body_entered", Callable(self, "fence_area_body_entered"))
 		fences.append(fence_inst)
@@ -856,7 +861,7 @@ func _gather_meshes(n: Node, into: Array) -> void:
 func _make_mover(template: MeshInstance3D, horizon_fade: bool = true) -> Node3D:
 	var mover := Node3D.new()
 	mover.set_script(env_move_script)
-	mover.set_meta("horizon_fade", horizon_fade)
+	mover.set_meta("horizon_fade", horizon_fade and MobilePerf.use_horizon_fade())
 	mover.add_child(template.duplicate())
 	return mover
 
@@ -897,19 +902,50 @@ func _on_spawn_timer_timeout():
 		)
 
 
+func _apply_mobile_graphics() -> void:
+	var sun := get_node_or_null("sun") as DirectionalLight3D
+	if sun:
+		sun.shadow_enabled = false
+	var fill := get_node_or_null("fill") as DirectionalLight3D
+	if fill:
+		fill.visible = false
+	var world_env := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if world_env and world_env.environment:
+		MobilePerf.apply_environment(world_env.environment)
+	var grass := StandardMaterial3D.new()
+	grass.albedo_color = Color(0.07, 0.20, 0.08)
+	grass.roughness = 1.0
+	$planet.material_override = grass
+	var ground_mesh := $planet.mesh as PlaneMesh
+	if ground_mesh:
+		ground_mesh.size = MobilePerf.ground_plane_size()
+	if MobilePerf.use_simple_lane_lines():
+		var lane := StandardMaterial3D.new()
+		lane.albedo_color = Color(0.86, 0.84, 0.72)
+		lane.emission_enabled = true
+		lane.emission = Color(0.86, 0.84, 0.72) * 0.18
+		$line_left.material_override = lane
+		$line_right.material_override = lane
+		var edge := StandardMaterial3D.new()
+		edge.albedo_color = Color(0.92, 0.90, 0.82)
+		$edge_left.material_override = edge
+		$edge_right.material_override = edge
+
+
 func _on_spawn_env_timer_timeout():
 	if _game_stopped():
 		return
-	spawn_env_timer.wait_time = randf_range(0.55, 0.85)
+	var env_range := MobilePerf.env_timer_range()
+	spawn_env_timer.wait_time = randf_range(env_range.x, env_range.y)
 	_spawn_tree(1)
 	_spawn_tree(-1)
-	if randf() < 0.5:
+	if randf() < MobilePerf.extra_tree_chance():
 		_spawn_tree(1)
-	if randf() < 0.5:
+	if randf() < MobilePerf.extra_tree_chance():
 		_spawn_tree(-1)
-	if randf() < 0.72:
+	if randf() < MobilePerf.shrub_spawn_chance():
 		_spawn_shrub(1)
-	if randf() < 0.72:
+	if randf() < MobilePerf.shrub_spawn_chance():
 		_spawn_shrub(-1)
 	_spawn_side_props(1)
 	_spawn_side_props(-1)
@@ -918,16 +954,20 @@ func _on_spawn_env_timer_timeout():
 func _populate_initial_side_world() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
+	var prop_count := MobilePerf.initial_side_prop_count()
+	var tree_count := MobilePerf.initial_tree_count()
+	var shrub_count := MobilePerf.initial_shrub_count()
 	for dir in [-1, 1]:
-		for i in range(10):
+		for i in range(prop_count):
 			var z: float = 8.0 - float(i) * 10.0
 			_spawn_side_prop_at(dir, z, rng, i % 3 == 0)
-		for i in range(9):
+		for i in range(tree_count):
 			_spawn_tree(dir, 10.0 - float(i) * 11.0)
-		for i in range(5):
+		for i in range(shrub_count):
 			_spawn_shrub(dir, 6.0 - float(i) * 13.0)
 		_spawn_side_prop_at(dir, -18.0, rng, true, "river")
-		_spawn_side_prop_at(dir, -42.0, rng, true, "bridge")
+		if not MobilePerf.active:
+			_spawn_side_prop_at(dir, -42.0, rng, true, "bridge")
 
 
 func _spawn_side_props(dir: int) -> void:
@@ -936,15 +976,20 @@ func _spawn_side_props(dir: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var base_z: float = startz + rng.randf_range(-6.0, 4.0)
-	if rng.randf() < 0.94:
+	var prop_chance: float = 0.82 if MobilePerf.active else 0.94
+	var extra_chance: float = 0.38 if MobilePerf.active else 0.62
+	var car_chance: float = 0.0 if not MobilePerf.allow_heavy_props() else 0.14
+	var human_chance: float = 0.0 if not MobilePerf.allow_heavy_props() else 0.22
+	var river_chance: float = 0.0 if not MobilePerf.allow_heavy_props() else 0.12
+	if rng.randf() < prop_chance:
 		_spawn_side_prop_at(dir, base_z, rng, rng.randf() < 0.42)
-	if rng.randf() < 0.62:
+	if rng.randf() < extra_chance:
 		_spawn_side_prop_at(dir, base_z + rng.randf_range(-4.0, 4.0), rng, rng.randf() < 0.28)
-	if rng.randf() < 0.14:
+	if rng.randf() < car_chance:
 		_spawn_side_prop_at(dir, startz + rng.randf_range(-3.0, 3.0), rng, false, "car")
-	if rng.randf() < 0.22:
+	if rng.randf() < human_chance:
 		_spawn_side_prop_at(dir, startz + rng.randf_range(-3.0, 3.0), rng, false, "human")
-	if rng.randf() < 0.12:
+	if rng.randf() < river_chance:
 		_spawn_side_prop_at(dir, startz + rng.randf_range(-2.0, 2.0), rng, false, "river")
 
 
@@ -955,7 +1000,7 @@ func _spawn_side_prop_at(dir: int, z: float, rng: RandomNumberGenerator, cluster
 	var mover := Node3D.new()
 	mover.set_script(env_move_script)
 	mover.set_meta("side_kind", kind)
-	mover.set_meta("horizon_fade", true)
+	mover.set_meta("horizon_fade", MobilePerf.use_horizon_fade())
 	mover.add_child(prop)
 	add_child(mover)
 	var min_x: float = _side_spawn_min_x(kind)
@@ -1072,10 +1117,14 @@ func _process(delta: float) -> void:
 	if _game_stopped():
 		return
 	run_distance += LANE_SCROLL_SPEED * delta
-	line_scroll += LANE_SCROLL_SPEED * delta
-	line_mat.set_shader_parameter("scroll_offset", line_scroll)
+	if not MobilePerf.use_simple_lane_lines():
+		line_scroll += LANE_SCROLL_SPEED * delta
+		line_mat.set_shader_parameter("scroll_offset", line_scroll)
 	_scroll_road_segments(delta)
-	_update_road_materials()
+	var mat_stride := MobilePerf.road_material_update_stride()
+	if mat_stride <= 1 or Engine.get_process_frames() % mat_stride == 0:
+		_update_road_materials()
+	WorldScroller.scroll_world(get_tree(), delta, MobilePerf.rotate_coins())
 	if _is_boat_yard_active() and Engine.get_process_frames() % 8 == 0:
 		_manage_boat_yard_left_scenery()
 	if Engine.get_process_frames() % 10 == 0:
@@ -1102,6 +1151,9 @@ func _scroll_road_segments(delta: float) -> void:
 
 func _physics_process(_delta: float) -> void:
 	if _game_stopped():
+		return
+	var stride := MobilePerf.physics_stride()
+	if stride > 1 and Engine.get_physics_frames() % stride != 0:
 		return
 	var pp: Vector3 = player.global_transform.origin
 	for r in get_tree().get_nodes_in_group("rocks"):

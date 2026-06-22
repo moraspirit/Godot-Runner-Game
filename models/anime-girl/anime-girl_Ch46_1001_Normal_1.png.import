@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://c75bu8ewkv2x0"
 path.s3tc="res://.godot/imported/anime-girl_Ch46_1001_Normal_1.png-c80d65ae10b165137970521bc1137d48.s3tc.ctex"
+path.etc2="res://.godot/imported/anime-girl_Ch46_1001_Normal_1.png-c80d65ae10b165137970521bc1137d48.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://models/anime-girl/anime-girl_Ch46_1001_Normal_1.png"
-dest_files=["res://.godot/imported/anime-girl_Ch46_1001_Normal_1.png-c80d65ae10b165137970521bc1137d48.s3tc.ctex"]
+dest_files=["res://.godot/imported/anime-girl_Ch46_1001_Normal_1.png-c80d65ae10b165137970521bc1137d48.s3tc.ctex", "res://.godot/imported/anime-girl_Ch46_1001_Normal_1.png-c80d65ae10b165137970521bc1137d48.etc2.ctex"]
 
 [params]
 
