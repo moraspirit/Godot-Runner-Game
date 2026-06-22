@@ -38,7 +38,7 @@ func prepare_run() -> void:
 	if not AuthSession.is_logged_in():
 		run_ready.emit(false, "Login required before play")
 		return
-	offline_mode = false
+	_reset_online_state()
 	_start_online_run()
 
 
@@ -49,12 +49,19 @@ func restart_run() -> void:
 	if not AuthSession.is_logged_in():
 		run_ready.emit(false, "Login required")
 		return
+	_reset_online_state()
+	_start_online_run()
+
+
+func _reset_online_state() -> void:
 	offline_mode = false
 	run_active = false
 	session_id = ""
 	signing_secret = PackedByteArray()
 	run_id = ""
-	_start_online_run()
+	segment_index = 0
+	run_total_coins = 0
+	_waiting_checkpoint = false
 
 
 func _start_offline_run(error_hint: String) -> void:
@@ -188,13 +195,19 @@ func _on_api_response(path: String, success: bool, status: int, body: Dictionary
 
 	if path == "/v1/run/finish":
 		run_active = false
-		if success and (body.get("accepted", false) or body.has("final_coins")):
+		var accepted: bool = success and bool(body.get("accepted", false))
+		if accepted:
 			run_total_coins = int(body.get("final_coins", body.get("final_score", run_total_coins)))
 			AuthSession.best_coins = int(body.get("best_coins", AuthSession.best_coins))
+			AuthSession.profile_updated.emit(body)
 			_log("finish accepted coins=%d rank=%s" % [run_total_coins, str(body.get("rank", "?"))])
+			finish_resolved.emit(true, body)
 		else:
-			push_warning("Finish rejected: %s" % str(body))
-		finish_resolved.emit(success, body)
+			var err_body := body.duplicate()
+			if not err_body.has("message"):
+				err_body["message"] = _format_finish_error(success, status, body)
+			push_warning("Finish rejected: %s" % str(err_body))
+			finish_resolved.emit(false, err_body)
 
 
 func _handle_online_failure(reason: String) -> void:
@@ -205,10 +218,26 @@ func _handle_online_failure(reason: String) -> void:
 
 
 func _format_api_error(label: String, status: int, body: Dictionary) -> String:
+	if str(body.get("error", "")) == "timeout":
+		return "%s timed out — server not responding." % label
+	if str(body.get("error", "")) in ["connection_failed", "request_failed"] or status == 0:
+		return "%s failed — cannot reach server at %s." % [label, SimConstants.API_BASE]
 	var err := str(body.get("error", body.get("message", body.get("raw", ""))))
 	if err == "":
 		err = str(body)
 	return "%s HTTP %d — %s" % [label, status, err]
+
+
+func _format_finish_error(success: bool, status: int, body: Dictionary) -> String:
+	if not success:
+		var code := str(body.get("error", ""))
+		if code == "request_failed" or status == 0:
+			return "Connection failed — could not validate score."
+		if code == "not_logged_in":
+			return "Session expired — log in again."
+		if code == "no_session":
+			return "Run session lost — return to menu and play again."
+	return _format_api_error("finish", status, body)
 
 
 func _count_coins_in_payload(payload: Dictionary) -> int:

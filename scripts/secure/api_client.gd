@@ -5,12 +5,21 @@ signal request_finished(path: String, success: bool, status: int, body: Dictiona
 var _http: HTTPRequest
 var _queue: Array[Dictionary] = []
 var _in_flight: Dictionary = {}
+var _flight_timer: Timer
+
+const REQUEST_TIMEOUT_SEC: float = 15.0
+const FLIGHT_WATCHDOG_SEC: float = 20.0
 
 
 func _ready() -> void:
 	_http = HTTPRequest.new()
+	_http.timeout = REQUEST_TIMEOUT_SEC
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
+	_flight_timer = Timer.new()
+	_flight_timer.one_shot = true
+	add_child(_flight_timer)
+	_flight_timer.timeout.connect(_on_flight_timeout)
 
 
 func post_unsigned(path: String, body_dict: Dictionary = {}) -> void:
@@ -88,9 +97,9 @@ func _pump_queue() -> void:
 	if err != OK:
 		var path: String = _in_flight.get("path", "")
 		_log("%s failed to start (err %d)" % [path, err])
-		_in_flight = {}
-		request_finished.emit(path, false, 0, {"error": "request_failed", "code": err})
-		_pump_queue()
+		_finish_request(path, false, 0, {"error": "request_failed", "code": err})
+		return
+	_flight_timer.start(FLIGHT_WATCHDOG_SEC)
 
 
 func _full_url(path: String) -> String:
@@ -102,6 +111,8 @@ func _full_url(path: String) -> String:
 
 func _on_request_completed(result: int, code: int, _headers: PackedStringArray, body_bytes: PackedByteArray) -> void:
 	var path: String = _in_flight.get("path", "")
+	if path == "":
+		return
 	var parsed: Dictionary = {}
 	var raw := ""
 	if body_bytes.size() > 0:
@@ -113,12 +124,40 @@ func _on_request_completed(result: int, code: int, _headers: PackedStringArray, 
 			parsed = {"raw": raw}
 
 	var ok := result == HTTPRequest.RESULT_SUCCESS and code >= 200 and code < 300
+	if not ok and not parsed.has("error"):
+		if result != HTTPRequest.RESULT_SUCCESS:
+			parsed["error"] = "connection_failed"
+			parsed["message"] = "Could not reach server."
+		elif code == 0:
+			parsed["error"] = "connection_failed"
+			parsed["message"] = "Could not reach server."
+
 	if SimConstants.DEBUG_API:
 		if ok:
 			_log("OK %s HTTP %d -> %s" % [path, code, _truncate(raw)])
 		else:
 			_log("FAIL %s result=%d HTTP %d -> %s" % [path, result, code, _truncate(raw)])
 
+	_finish_request(path, ok, code, parsed)
+
+
+func _on_flight_timeout() -> void:
+	if _in_flight.is_empty():
+		return
+	var path: String = _in_flight.get("path", "")
+	_log("watchdog timeout on %s" % path)
+	_http.cancel_request()
+	if not _in_flight.is_empty():
+		_finish_request(path, false, 0, {
+			"error": "timeout",
+			"message": "Server did not respond in time.",
+		})
+
+
+func _finish_request(path: String, ok: bool, code: int, parsed: Dictionary) -> void:
+	if _in_flight.is_empty() or _in_flight.get("path", "") != path:
+		return
+	_flight_timer.stop()
 	_in_flight = {}
 	request_finished.emit(path, ok, code, parsed)
 	_pump_queue()

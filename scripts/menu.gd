@@ -18,6 +18,7 @@ var _title_label: Label
 var _subtitle_label: Label
 var _menu_name_label: Label
 var _menu_best_label: Label
+var _play_wait_timer: Timer
 var _btn_font: int = 42
 var _title_font: int = 92
 
@@ -110,9 +111,15 @@ func _build_ui() -> void:
 
 	root.add_child(_spacer(8))
 
-	_play_btn = _add_menu_button(root, "PLAY", Color(0.16, 0.72, 0.4), _on_play)
-	_add_menu_button(root, "LEADERBOARD", Color(0.55, 0.35, 0.12), _on_leaderboard)
-	_add_menu_button(root, "SETTINGS", Color(0.28, 0.32, 0.42), _show_settings)
+	var btn_col := VBoxContainer.new()
+	root.add_child(btn_col)
+	btn_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_col.add_theme_constant_override("separation", 14 if BrowserBridge.is_mobile_viewport() else 16)
+
+	_play_btn = _add_menu_button(btn_col, "PLAY", Color(0.16, 0.72, 0.4), _on_play)
+	_add_menu_button(btn_col, "SETTINGS", Color(0.28, 0.32, 0.42), _show_settings)
+	_add_menu_button(btn_col, "LEADERBOARD", Color(0.55, 0.35, 0.12), _on_leaderboard)
+	_add_menu_button(btn_col, "BUY A TICKET", Color(0.72, 0.48, 0.1), _on_buy_ticket)
 
 	_build_overlay()
 	_build_settings_panel()
@@ -242,7 +249,6 @@ func _build_settings_panel() -> void:
 	_logout_btn = _add_menu_button(_settings_box, "LOGOUT", Color(0.35, 0.22, 0.22), _on_logout)
 	_logout_btn.visible = false
 
-	_add_menu_button(_settings_box, "BUY TICKET", Color(0.72, 0.48, 0.1), _on_buy_ticket)
 	_add_menu_button(_settings_box, "HOW TO PLAY", Color(0.22, 0.38, 0.72), func(): _hide_settings(); _show_overlay(
 		"How to Play",
 		"Login once with your index number and phone — you stay signed in for 60 days.\n\nSwipe left or right to change lane.\n\nSwipe up to jump over rocks.\n\nCollect coins — only coins count for score!"
@@ -515,13 +521,40 @@ func _on_play() -> void:
 	if _play_btn:
 		_play_btn.disabled = true
 		_play_btn.text = "LOADING..."
+	_start_play_timeout()
 	if RunSession.run_ready.is_connected(_on_run_ready):
 		RunSession.run_ready.disconnect(_on_run_ready)
 	RunSession.run_ready.connect(_on_run_ready, CONNECT_ONE_SHOT)
 	RunSession.prepare_run()
 
 
+func _start_play_timeout() -> void:
+	if _play_wait_timer == null:
+		_play_wait_timer = Timer.new()
+		_play_wait_timer.one_shot = true
+		_play_wait_timer.wait_time = 25.0
+		add_child(_play_wait_timer)
+		_play_wait_timer.timeout.connect(_on_play_timeout)
+	_play_wait_timer.start()
+
+
+func _stop_play_timeout() -> void:
+	if _play_wait_timer:
+		_play_wait_timer.stop()
+
+
+func _on_play_timeout() -> void:
+	if _play_btn == null or _play_btn.text != "LOADING...":
+		return
+	_refresh_auth_ui()
+	_show_overlay(
+		"Could not start",
+		"Timed out waiting for server.\n\nCheck that the API is running at:\n%s\n\nTap Close to stay on the menu." % SimConstants.API_BASE
+	)
+
+
 func _on_run_ready(success: bool, error_message: String) -> void:
+	_stop_play_timeout()
 	_refresh_auth_ui()
 	if not success:
 		if _play_btn:

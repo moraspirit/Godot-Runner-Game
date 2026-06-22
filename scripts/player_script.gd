@@ -38,6 +38,13 @@ var hint_label: Label
 
 var _finish_data: Dictionary = {}
 var _finish_done: bool = false
+var _finish_success: bool = false
+var _finish_ui_finalized: bool = false
+var _finish_wait_timer: Timer
+var _play_again_btn: Button
+var _menu_btn: Button
+
+const FINISH_WAIT_SEC: float = 22.0
 
 # swipe tracking
 var _touch_start: Vector2 = Vector2.ZERO
@@ -165,25 +172,25 @@ func _setup_hud() -> void:
 
 	box.add_child(_spacer(12))
 
-	var play_again := Button.new()
-	box.add_child(play_again)
-	play_again.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
-	play_again.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	play_again.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
-	play_again.text = "Play"
-	play_again.add_theme_stylebox_override("normal", _pill_style(Color(0.92, 0.95, 1.0)))
-	play_again.add_theme_color_override("font_color", Color(0.08, 0.1, 0.14))
-	play_again.pressed.connect(_restart)
+	_play_again_btn = Button.new()
+	box.add_child(_play_again_btn)
+	_play_again_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
+	_play_again_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_play_again_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
+	_play_again_btn.text = "Play"
+	_play_again_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.92, 0.95, 1.0)))
+	_play_again_btn.add_theme_color_override("font_color", Color(0.08, 0.1, 0.14))
+	_play_again_btn.pressed.connect(_restart)
 
-	var menu_btn := Button.new()
-	box.add_child(menu_btn)
-	menu_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height() - 8)
-	menu_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	menu_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
-	menu_btn.add_theme_color_override("font_color", Color(0.85, 0.72, 0.35))
-	menu_btn.text = "Menu"
-	menu_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.12, 0.14, 0.2)))
-	menu_btn.pressed.connect(_go_menu)
+	_menu_btn = Button.new()
+	box.add_child(_menu_btn)
+	_menu_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height() - 8)
+	_menu_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_menu_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
+	_menu_btn.add_theme_color_override("font_color", Color(0.85, 0.72, 0.35))
+	_menu_btn.text = "Menu"
+	_menu_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.12, 0.14, 0.2)))
+	_menu_btn.pressed.connect(_go_menu)
 
 
 func _make_hud_label(parent: Node, align: HorizontalAlignment, color: Color) -> Label:
@@ -253,12 +260,15 @@ func _on_checkpoint_resolved(accepted: bool, data: Dictionary) -> void:
 		_refresh_coin_hud()
 
 
-func _on_finish_resolved(_success: bool, data: Dictionary) -> void:
+func _on_finish_resolved(success: bool, data: Dictionary) -> void:
 	_finish_data = data
+	_finish_success = success
 	_finish_done = true
-	if data.has("best_coins"):
-		AuthSession.best_coins = int(data.get("best_coins", AuthSession.best_coins))
-	_refresh_coin_hud()
+	if success:
+		_refresh_coin_hud()
+	if game_over and not _finish_ui_finalized:
+		_stop_finish_wait()
+		_trigger_game_over()
 
 
 func _card_style() -> StyleBoxFlat:
@@ -350,9 +360,18 @@ func _restart() -> void:
 	RunSession.restart_run()
 
 
-func _on_restart_run_ready(success: bool, _error_message: String) -> void:
+func _on_restart_run_ready(success: bool, error_message: String) -> void:
 	if success:
 		get_tree().reload_current_scene()
+		return
+	get_tree().paused = false
+	_finish_success = false
+	_finish_done = true
+	_finish_data = {
+		"message": error_message if error_message != "" else "Could not start a new run.",
+	}
+	_finish_ui_finalized = false
+	_trigger_game_over()
 
 
 func _go_menu() -> void:
@@ -416,8 +435,11 @@ func _physics_process(delta: float) -> void:
 
 func _start_death() -> void:
 	dying = true
-	_finish_done = RunSession.offline_mode
-	_finish_data = {}
+	# submit_finish() runs in level.gd before is_dead — response may arrive first
+	if not _finish_done:
+		_finish_success = false
+		_finish_data = {}
+	_finish_ui_finalized = false
 	if death_anim != "":
 		var a := anim_player.get_animation(death_anim)
 		if a:
@@ -430,31 +452,103 @@ func _start_death() -> void:
 		if m:
 			m.rotate_x(-PI / 2.0)
 	# Let the death play out on the road before the game-over card appears.
-	await get_tree().create_timer(1.2).timeout
-	if not RunSession.offline_mode:
-		var waited: float = 0.0
-		while not _finish_done and waited < 3.0:
-			await get_tree().create_timer(0.1).timeout
-			waited += 0.1
+	await get_tree().create_timer(1.2, true).timeout
+	if RunSession.offline_mode:
+		_finish_success = true
+		_finish_data = {"final_coins": coin_count}
+		_show_game_over_loading()
+		_trigger_game_over()
+		return
+	_show_game_over_loading()
+	if _finish_done:
+		_trigger_game_over()
+	else:
+		_arm_finish_wait()
+
+
+func _arm_finish_wait() -> void:
+	if _finish_wait_timer == null:
+		_finish_wait_timer = Timer.new()
+		_finish_wait_timer.one_shot = true
+		_finish_wait_timer.wait_time = FINISH_WAIT_SEC
+		_finish_wait_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(_finish_wait_timer)
+		_finish_wait_timer.timeout.connect(_on_finish_wait_timeout)
+	_finish_wait_timer.start()
+
+
+func _stop_finish_wait() -> void:
+	if _finish_wait_timer:
+		_finish_wait_timer.stop()
+
+
+func _on_finish_wait_timeout() -> void:
+	if _finish_ui_finalized or _finish_done:
+		return
+	_finish_success = false
+	_finish_done = true
+	_finish_data = {
+		"error": "timeout",
+		"message": "Server timed out — score could not be validated.",
+	}
 	_trigger_game_over()
 
 
-func _trigger_game_over() -> void:
+func _show_game_over_loading() -> void:
 	game_over = true
+	result_label.text = "Validating score..."
+	if _play_again_btn:
+		_play_again_btn.disabled = true
+	if _menu_btn:
+		_menu_btn.disabled = true
+	overlay.visible = true
+	overlay.modulate.a = 1.0
+
+
+func _trigger_game_over() -> void:
+	if _finish_ui_finalized:
+		return
+	_finish_ui_finalized = true
+	_stop_finish_wait()
+	if not game_over:
+		game_over = true
+		overlay.visible = true
+		overlay.modulate.a = 1.0
+
+	get_tree().paused = true
+
+	if _play_again_btn:
+		_play_again_btn.disabled = false
+	if _menu_btn:
+		_menu_btn.disabled = false
+
 	var lines: PackedStringArray = PackedStringArray()
-	var display_coins: int = coin_count
-	if _finish_data.has("final_coins"):
-		display_coins = int(_finish_data.get("final_coins", coin_count))
-	lines.append("Coins %d" % display_coins)
-	var rank: int = int(_finish_data.get("rank", 0))
-	if rank > 0:
-		lines.append("Rank #%d" % rank)
+	if _finish_success:
+		var display_coins: int = int(_finish_data.get("final_coins", 0))
+		lines.append("Coins %d" % display_coins)
+		var rank: int = int(_finish_data.get("rank", 0))
+		if rank > 0:
+			lines.append("Rank #%d" % rank)
+	else:
+		lines.append(_finish_error_message())
+		lines.append("Tap Menu to go back.")
+
 	result_label.text = "\n".join(lines)
 	overlay.visible = true
-	overlay.modulate.a = 0.0
-	var tw := create_tween()
-	tw.tween_property(overlay, "modulate:a", 1.0, 0.35)
-	get_tree().paused = true
+	overlay.modulate.a = 1.0
+
+
+func _finish_error_message() -> String:
+	if _finish_data.has("message"):
+		return str(_finish_data.get("message", ""))
+	var err := str(_finish_data.get("error", ""))
+	if err == "timeout":
+		return "Server timed out — score could not be validated."
+	if err == "connection_failed" or err == "request_failed":
+		return "Connection failed — could not validate score."
+	if err != "":
+		return "Score validation failed: %s" % err
+	return "Could not validate score. Try again later."
 
 func _on_collision_area_entered(area):
 	var parent = area.get_parent()
