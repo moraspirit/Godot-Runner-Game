@@ -47,6 +47,8 @@ var _play_again_btn: Button
 var _menu_btn: Button
 var _start_overlay: Control
 var _start_btn: Button
+var _countdown_label: Label
+var _countdown_running: bool = false
 
 const FINISH_WAIT_SEC: float = 22.0
 
@@ -196,6 +198,22 @@ func _setup_start_prompt(layer: CanvasLayer) -> void:
 	_start_btn.add_theme_color_override("font_color", Color(1, 1, 1))
 	_start_btn.pressed.connect(_on_start_pressed)
 
+	_countdown_label = Label.new()
+	_start_overlay.add_child(_countdown_label)
+	_countdown_label.set_anchors_preset(Control.PRESET_CENTER)
+	_countdown_label.offset_top = -40.0
+	_countdown_label.offset_bottom = 40.0
+	_countdown_label.offset_left = -160.0
+	_countdown_label.offset_right = 160.0
+	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_countdown_label.add_theme_font_size_override("font_size", BrowserBridge.popup_title_font() + 36)
+	_countdown_label.add_theme_color_override("font_color", Color(1, 0.92, 0.35))
+	_countdown_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_countdown_label.add_theme_constant_override("outline_size", 12)
+	_countdown_label.visible = false
+
 
 func _enter_attract_mode() -> void:
 	game_started = false
@@ -214,20 +232,45 @@ func _enter_attract_mode() -> void:
 		_start_overlay.visible = true
 	if _start_btn:
 		_start_btn.disabled = false
+		_start_btn.visible = true
+	if _countdown_label:
+		_countdown_label.visible = false
+	_countdown_running = false
 	var idle_anim: String = dance_anim if dance_anim != "" else run_anim
 	_play_anim(idle_anim, true)
 
 
 func _on_start_pressed() -> void:
-	if game_started or game_over or is_dead:
+	if game_started or game_over or is_dead or _countdown_running:
+		return
+	_countdown_running = true
+	if _start_btn:
+		_start_btn.disabled = true
+		_start_btn.visible = false
+	await _run_start_countdown()
+	if game_over or is_dead:
+		_countdown_running = false
 		return
 	game_started = true
+	_countdown_running = false
 	if _start_overlay:
 		_start_overlay.visible = false
 	_play_anim(run_anim, true)
 	var level := get_tree().get_first_node_in_group("level")
 	if level and level.has_method("begin_run"):
 		level.begin_run()
+
+
+func _run_start_countdown() -> void:
+	if _countdown_label == null:
+		return
+	_countdown_label.visible = true
+	var steps: PackedStringArray = PackedStringArray(["3", "2", "1", "GO!"])
+	for i in steps.size():
+		_countdown_label.text = steps[i]
+		var wait_sec: float = 0.65 if steps[i] == "GO!" else 0.85
+		await get_tree().create_timer(wait_sec).timeout
+	_countdown_label.visible = false
 
 
 func _make_hud_label(parent: Node, align: HorizontalAlignment, color: Color) -> Label:

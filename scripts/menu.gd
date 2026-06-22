@@ -3,10 +3,24 @@ extends Control
 const TICKET_URL: String = "https://epilogue.moraspirit.com"
 const MENU_BG: Texture2D = preload("res://assets/menu_bg.jpg")
 
+const WIN_TICKET_TEXT := (
+	"The student in first place on the leaderboard wins a ticket to the Epilogue concert.\n\n"
+	+ "We select a new winner each week until Epilogue concert day (28 July).\n\n"
+	+ "Keep playing, climb the ranks, and good luck!\n\n"
+	+ "Terms and conditions apply."
+)
+
+const ABOUT_US_TEXT := (
+	"We are Moraspirit — The Voice of University Sports in Sri Lanka.\n\n"
+	+ "This game is proudly developed by the Web and Technology pillar of Moraspirit.\n\n"
+	+ "moraspirit.com"
+)
+
 var _overlay: PanelContainer
 var _overlay_title: Label
 var _overlay_body: Label
 var _overlay_close: Button
+var _overlay_back_to_settings: bool = false
 var _settings_panel: PanelContainer
 var _settings_box: VBoxContainer
 var _sound_btn: Button
@@ -249,16 +263,10 @@ func _build_settings_panel() -> void:
 	_logout_btn = _add_menu_button(_settings_box, "LOGOUT", Color(0.35, 0.22, 0.22), _on_logout)
 	_logout_btn.visible = false
 
-	_add_menu_button(_settings_box, "HOW TO PLAY", Color(0.22, 0.38, 0.72), func(): _hide_settings(); _show_overlay(
-		"How to Play",
-		"Login once with your index number and phone — you stay signed in for 60 days.\n\nSwipe left or right to change lane.\n\nSwipe up to jump over rocks.\n\nCollect coins — only coins count for score!"
-	))
+	_add_menu_button(_settings_box, "WIN A TICKET", Color(0.55, 0.35, 0.12), func(): _show_overlay("Win a Ticket", WIN_TICKET_TEXT, true))
+	_add_menu_button(_settings_box, "ABOUT US", Color(0.28, 0.32, 0.42), func(): _show_overlay("About Us", ABOUT_US_TEXT, true))
 	_sound_btn = _add_menu_button(_settings_box, "", Color(0.28, 0.32, 0.42), _on_toggle_sound)
 	_refresh_sound_label()
-	_add_menu_button(_settings_box, "CREDITS", Color(0.28, 0.32, 0.42), func(): _hide_settings(); _show_overlay(
-		"Credits",
-		"moraspirit.com\n\nWeb & Technology Piler"
-	))
 
 	if not _is_mobile():
 		_add_menu_button(_settings_box, "QUIT", Color(0.45, 0.18, 0.18), _on_quit)
@@ -501,9 +509,13 @@ func _overlay_style() -> StyleBoxFlat:
 	return sb
 
 
-func _show_overlay(title: String, body: String) -> void:
+func _show_overlay(title: String, body: String, back_to_settings: bool = false) -> void:
+	_overlay_back_to_settings = back_to_settings
 	_overlay_title.text = title
 	_overlay_body.text = body
+	_overlay_close.text = "BACK" if back_to_settings else "CLOSE"
+	if back_to_settings:
+		_hide_settings()
 	_overlay.visible = true
 	get_node("OverlayDim").visible = true
 	call_deferred("_fit_overlay_body")
@@ -518,6 +530,9 @@ func _fit_overlay_body() -> void:
 func _hide_overlay() -> void:
 	_overlay.visible = false
 	get_node("OverlayDim").visible = false
+	if _overlay_back_to_settings:
+		_overlay_back_to_settings = false
+		_show_settings()
 
 
 func _refresh_sound_label() -> void:
