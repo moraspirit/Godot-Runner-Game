@@ -1,12 +1,18 @@
 # Deploy static Godot web build to GitHub Pages.
 #
-# Setup (once):
-#   1. Repo → Settings → Pages → Source: GitHub Actions
-#   2. Repo → Settings → Secrets and variables → Actions → Variables:
-#        API_BASE_URL = https://api.yoursite.com   (your production backend, HTTPS)
+# Setup (once) — pick ONE source (if you see README instead of the game, Pages is
+# still pointed at the master branch; change it using either option below):
 #
-# Backend CORS_ORIGIN must match this site origin (no path), e.g.:
-#   https://moraspirit.github.io
+#   Option A (recommended): Settings → Pages → Build and deployment → Source: GitHub Actions
+#
+#   Option B: Settings → Pages → Deploy from branch → branch: gh-pages → folder: / (root)
+#             (this workflow pushes build/web to the gh-pages branch on every run)
+#
+#   Also set: Settings → Secrets and variables → Actions → Variables:
+#        API_BASE_URL = https://api.yoursite.com   (HTTPS, no trailing slash)
+#
+# Backend CORS_ORIGIN must match the site origin (no path), e.g.:
+#   https://run.moraspirit.com
 
 name: Deploy GitHub Pages
 
@@ -16,7 +22,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -100,6 +106,13 @@ jobs:
           echo "Build sizes:"
           ls -lh build/web/index.*.pck build/web/index.*.wasm build/web/index.*.js build/web/version.json 2>/dev/null || true
 
+      - name: Verify web export
+        run: |
+          test -f build/web/index.html
+          test -f build/web/.nojekyll
+          grep -q '<title>Runner</title>' build/web/index.html
+          ls -la build/web/
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -107,6 +120,15 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: build/web
+
+      # Fallback for repos still using "Deploy from branch" (README shows when branch=master).
+      - name: Publish gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
+          force_orphan: true
+          commit_message: "Deploy Godot web build ${{ github.sha }}"
 
   deploy:
     runs-on: ubuntu-latest

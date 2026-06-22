@@ -87,6 +87,13 @@ def main() -> int:
 		encoding="utf-8",
 	)
 
+	# GitHub Pages: skip Jekyll and keep custom domain when deploying the artifact.
+	(web / ".nojekyll").write_text("", encoding="utf-8")
+	repo_root = Path(__file__).resolve().parent.parent
+	cname_src = repo_root / "CNAME"
+	if cname_src.is_file():
+		shutil.copy2(cname_src, web / "CNAME")
+
 	print(f"post_export_web: build={build} sim_version={sim_version}")
 	for ext in (".wasm", ".pck", ".js"):
 		p = web / f"{prefix}{ext}"
