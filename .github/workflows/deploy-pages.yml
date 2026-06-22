@@ -84,6 +84,12 @@ jobs:
               "const OFFLINE_FALLBACK: bool = false",
               text,
           )
+          build = __import__("os").environ.get("GITHUB_SHA", "dev")[:12]
+          text = re.sub(
+              r'const CLIENT_BUILD: String = "[^"]*"',
+              f'const CLIENT_BUILD: String = "{build}"',
+              text,
+          )
           path.write_text(text)
           PY
 
@@ -91,8 +97,9 @@ jobs:
         run: |
           mkdir -p build/web
           godot --headless --path . --export-release "${EXPORT_PRESET}" build/web/index.html
+          BUILD_ID="${GITHUB_SHA:0:12}" SIM_VERSION=6 python3 scripts/post_export_web.py
           echo "Build sizes:"
-          ls -lh build/web/index.pck build/web/index.wasm build/web/index.js 2>/dev/null || true
+          ls -lh build/web/index.*.pck build/web/index.*.wasm build/web/index.*.js build/web/version.json 2>/dev/null || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

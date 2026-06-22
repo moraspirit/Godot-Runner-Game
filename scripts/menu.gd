@@ -52,6 +52,9 @@ func _ready() -> void:
 		AuthSession.profile_updated.connect(_on_profile_updated)
 	if not get_viewport().size_changed.is_connected(_layout_menu_top_bar):
 		get_viewport().size_changed.connect(_layout_menu_top_bar)
+	if not VersionCheck.update_required.is_connected(_on_update_required):
+		VersionCheck.update_required.connect(_on_update_required)
+	call_deferred("_check_app_version")
 
 
 func _apply_responsive_scale() -> void:
@@ -538,6 +541,19 @@ func _hide_overlay() -> void:
 func _refresh_sound_label() -> void:
 	if _sound_btn:
 		_sound_btn.text = "SOUND: ON" if GameSettings.sound_enabled else "SOUND: OFF"
+
+
+func _check_app_version() -> void:
+	if SimConstants.API_BASE.is_empty():
+		return
+	VersionCheck.check()
+
+
+func _on_update_required(message: String) -> void:
+	if _play_btn:
+		_play_btn.disabled = true
+		_play_btn.text = "REFRESH PAGE"
+	_show_overlay("Update required", message)
 
 
 func _on_play() -> void:

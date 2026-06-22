@@ -1,6 +1,7 @@
 extends Node
 
 const SIM_VERSION: int = 6
+const CLIENT_BUILD: String = "dev"
 
 const NUM_LANES: int = 3
 const LANE_X: Array = [-2.0, 0.0, 2.0]

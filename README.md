@@ -26,5 +26,7 @@ Endless runner built with Godot 4 — secure online scoring via the Go backend.
 
 ## Docs
 
+- [`docs/ANTI-CHEAT.md`](docs/ANTI-CHEAT.md) — anti-cheat overview, HMAC signing in detail, hardening checklist
+- [`docs/WEB-CACHE-VERSION.md`](docs/WEB-CACHE-VERSION.md) — cached WASM/PCK updates without re-download every visit
 - `docs/godot-web-frontend-integration.md` — auth, API, menu flow
 - `docs/godot-web-secure-client.md` — secure spawn / HMAC client design
