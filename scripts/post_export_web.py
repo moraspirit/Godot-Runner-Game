@@ -26,6 +26,7 @@ def main() -> int:
 	build = os.environ.get("BUILD_ID") or os.environ.get("GITHUB_SHA") or "dev"
 	build = build.strip()[:12]
 	sim_version = int(os.environ.get("SIM_VERSION", "6"))
+	prefix = f"index.{build}"
 
 	# Versioned copies of the large artifacts (cached long-term by URL).
 	for ext in (".wasm", ".pck", ".js"):
@@ -33,7 +34,17 @@ def main() -> int:
 		if not src.is_file():
 			print(f"warning: missing {src}")
 			continue
-		dst = web / f"index.{build}{ext}"
+		dst = web / f"{prefix}{ext}"
+		shutil.copy2(src, dst)
+		src.unlink()
+
+	# Godot 4 web audio loads worklets next to the versioned main JS (index.{build}.audio*.js).
+	for suffix in (".audio.worklet.js", ".audio.position.worklet.js"):
+		src = web / f"index{suffix}"
+		if not src.is_file():
+			print(f"warning: missing {src}")
+			continue
+		dst = web / f"{prefix}{suffix}"
 		shutil.copy2(src, dst)
 		src.unlink()
 
@@ -43,7 +54,6 @@ def main() -> int:
 		return 1
 
 	html = html_path.read_text(encoding="utf-8")
-	prefix = f"index.{build}"
 
 	html = html.replace('src="index.js"', f'src="{prefix}.js"')
 	html = re.sub(r'"executable"\s*:\s*"index"', f'"executable":"{prefix}"', html)
@@ -103,7 +113,7 @@ document.addEventListener('pointerdown', function () {
 	)
 
 	print(f"post_export_web: build={build} sim_version={sim_version}")
-	for ext in (".wasm", ".pck", ".js"):
+	for ext in (".wasm", ".pck", ".js", ".audio.worklet.js", ".audio.position.worklet.js"):
 		p = web / f"{prefix}{ext}"
 		if p.is_file():
 			print(f"  {p.name} ({p.stat().st_size // 1024} KiB)")

@@ -269,6 +269,7 @@ func _enter_attract_mode() -> void:
 func _on_start_pressed() -> void:
 	if game_started or game_over or is_dead or _countdown_running:
 		return
+	BrowserBridge.unlock_web_audio()
 	_countdown_running = true
 	if _start_btn:
 		_start_btn.disabled = true
