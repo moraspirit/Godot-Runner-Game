@@ -6,6 +6,7 @@ extends Node
 @onready var spawn_obstacle_timer: Timer = $spawn_obstacle_timer
 
 @onready var coin: PackedScene = preload("res://scenes/coin.tscn")
+@onready var fence: PackedScene = preload("res://models/cartoon-assets/fence.tscn")
 
 @onready var asphalt_mat: Material = preload("res://models/road_asphalt.tres")
 
@@ -15,15 +16,11 @@ const NATURE_TREES: Array = [
 	"res://models/nature/PineTrees.glb",
 	"res://models/nature/Trees.glb",
 ]
-const NATURE_SHRUBS: Array = [
-	"res://models/nature/Bushes.glb",
-]
 const NATURE_ROCKS: Array = [
 	"res://models/nature/Rocks.glb",
 ]
 
 var tree_templates: Array = []
-var shrub_templates: Array = []
 var rock_templates: Array = []
 
 var _last_tree: int = -1
@@ -34,6 +31,15 @@ var run_distance: float = 0.0
 
 var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
+
+const FENCE_COUNT: int = 40
+const FENCE_SPACING: float = 1.5
+const FENCE_WRAP_Z: float = 30.0
+var fences: Array = []
+var _fence_loop_len: float = FENCE_SPACING * FENCE_COUNT
+
+const ENV_TREE_X_MIN: float = 4.5
+const ENV_TREE_X_MAX: float = 7.0
 
 # scrolling road strips
 const ROAD_SEGMENT_LEN: float = 5.0
@@ -70,6 +76,7 @@ func _ready():
 	add_to_group("level")
 	_load_nature()
 	_setup_road_segments()
+	_setup_fences()
 	_setup_signs()
 
 	if SimConstants.SECURE_SPAWNS:
@@ -83,6 +90,17 @@ func _ready():
 		randomize()
 
 	_setup_bgm()
+
+
+func _setup_fences() -> void:
+	_fence_loop_len = FENCE_SPACING * FENCE_COUNT
+	var z: float = -_fence_loop_len * 0.5
+	for i in FENCE_COUNT:
+		var fence_inst: Node3D = fence.instantiate()
+		fences.append(fence_inst)
+		add_child(fence_inst)
+		fence_inst.position = Vector3(0.0, 0.0, z)
+		z += FENCE_SPACING
 
 
 func _setup_bgm() -> void:
@@ -644,7 +662,6 @@ func _add_concert_sign(root: Node3D, title: String, date_line: String, rot_y: fl
 
 func _load_nature() -> void:
 	_collect(NATURE_TREES, tree_templates)
-	_collect(NATURE_SHRUBS, shrub_templates)
 	_collect(NATURE_ROCKS, rock_templates)
 	# medium-sized rocks — visible on the road but still jumpable
 	rock_templates = rock_templates.filter(func(t: MeshInstance3D) -> bool:
@@ -712,8 +729,6 @@ func _on_spawn_env_timer_timeout():
 		return
 	var side: int = 1 if randf() < 0.5 else -1
 	_spawn_tree(side)
-	if randf() < 0.6:
-		_spawn_shrub(side)
 	spawn_env_timer.wait_time = randf_range(1.5, 2.5)
 
 
@@ -729,24 +744,9 @@ func _spawn_tree(dir: int) -> void:
 	add_child(mover)
 	var s: float = randf_range(0.85, 1.5)
 	mover.global_transform.origin = Vector3(
-		dir * randf_range(7.0, 18.0),
+		dir * randf_range(ENV_TREE_X_MIN, ENV_TREE_X_MAX),
 		0.0,
 		startz + randf_range(-4.0, 4.0)
-	)
-	mover.rotation.y = randf() * TAU
-	mover.scale = Vector3(s, s, s)
-
-
-func _spawn_shrub(dir: int) -> void:
-	if shrub_templates.is_empty():
-		return
-	var mover := _make_mover(shrub_templates[randi() % shrub_templates.size()])
-	add_child(mover)
-	var s: float = randf_range(0.7, 1.3)
-	mover.global_transform.origin = Vector3(
-		dir * randf_range(4.5, 8.5),
-		0.0,
-		startz + randf_range(-3.0, 3.0)
 	)
 	mover.rotation.y = randf() * TAU
 	mover.scale = Vector3(s, s, s)
@@ -790,6 +790,7 @@ func _process(delta: float) -> void:
 		return
 	run_distance += LANE_SCROLL_SPEED * delta
 	_scroll_road_segments(delta)
+	_scroll_fences(delta)
 	if SimConstants.SECURE_SPAWNS:
 		_process_secure_spawns()
 		_try_segment_checkpoint()
@@ -808,6 +809,18 @@ func _scroll_road_segments(delta: float) -> void:
 		if seg.position.z > 28.0:
 			min_z -= ROAD_SEGMENT_LEN
 			seg.position.z = min_z
+
+
+func _scroll_fences(delta: float) -> void:
+	if fences.is_empty():
+		return
+	var dz: float = LANE_SCROLL_SPEED * delta
+	for fence_inst in fences:
+		if not is_instance_valid(fence_inst):
+			continue
+		fence_inst.position.z += dz
+		while fence_inst.position.z > FENCE_WRAP_Z:
+			fence_inst.position.z -= _fence_loop_len
 
 
 func _physics_process(_delta: float) -> void:
