@@ -170,4 +170,15 @@ func _on_api_response(path: String, success: bool, status: int, body: Dictionary
 		logged_in.emit()
 	else:
 		var err := str(body.get("error", body.get("message", body.get("raw", "Request failed"))))
-		_status.text = "%s (%d)" % [err, status]
+		_status.text = _format_auth_error(err, status)
+
+
+func _format_auth_error(err: String, status: int) -> String:
+	match err:
+		"index_number_already_registered":
+			return "That index number is already registered."
+		"username_already_registered":
+			return "That name is already taken — choose another."
+		"invalid_credentials":
+			return "Index number or phone number is incorrect."
+	return "%s (%d)" % [err, status]
