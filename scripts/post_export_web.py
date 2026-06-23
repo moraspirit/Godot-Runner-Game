@@ -107,6 +107,11 @@ document.addEventListener('pointerdown', function () {
 
 	(web / ".nojekyll").write_text("", encoding="utf-8")
 
+	cname_src = Path(os.environ.get("REPO_ROOT", web.parent.parent)) / "CNAME"
+	if cname_src.is_file():
+		shutil.copy2(cname_src, web / "CNAME")
+		print(f"post_export_web: copied {cname_src.name}")
+
 	(web / "version.json").write_text(
 		json.dumps({"build": build, "sim_version": sim_version}, indent=2) + "\n",
 		encoding="utf-8",
