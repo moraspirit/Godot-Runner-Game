@@ -26,8 +26,9 @@ var rock_templates: Array = []
 var _last_tree: int = -1
 var _last_rock: int = -1
 
-const LANE_SCROLL_SPEED: float = 15.0
+const LANE_SCROLL_SPEED: float = SimConstants.SCROLL_SPEED
 var run_distance: float = 0.0
+var _segment_elapsed_sec: float = 0.0
 
 var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
@@ -127,6 +128,10 @@ func get_segment_distance() -> float:
 	return run_distance - _segment_start_distance
 
 
+func get_scroll_speed() -> float:
+	return SimConstants.scroll_speed_at_sec(_segment_elapsed_sec)
+
+
 func _game_stopped() -> bool:
 	if player == null:
 		return true
@@ -174,6 +179,7 @@ func _init_secure_segment() -> void:
 	_segment_spawns = SegmentMapGen.generate(RunSession.current_seed)
 	_next_spawn_idx = 0
 	_segment_start_distance = run_distance
+	_segment_elapsed_sec = 0.0
 	_checkpoint_busy = false
 	_clear_gameplay_spawns()
 
@@ -321,7 +327,7 @@ func _on_sign_timer() -> void:
 		_spawn_concert_boards()
 		sign_index = (sign_index + 1) % street_names.size()
 		var concert_z: float = startz - CONCERT_ROAD_GAP
-		var concert_travel: float = abs(concert_z) / LANE_SCROLL_SPEED
+		var concert_travel: float = abs(concert_z) / get_scroll_speed()
 		sign_timer.wait_time = concert_travel + 4.0
 		return
 	_spawn_sign(name)
@@ -788,18 +794,20 @@ const JUMP_CLEAR_Y: float = 0.72
 func _process(delta: float) -> void:
 	if _game_stopped():
 		return
-	run_distance += LANE_SCROLL_SPEED * delta
-	_scroll_road_segments(delta)
-	_scroll_fences(delta)
+	var speed: float = get_scroll_speed()
+	_segment_elapsed_sec += delta
+	run_distance += speed * delta
+	_scroll_road_segments(delta, speed)
+	_scroll_fences(delta, speed)
 	if SimConstants.SECURE_SPAWNS:
 		_process_secure_spawns()
 		_try_segment_checkpoint()
 
 
-func _scroll_road_segments(delta: float) -> void:
+func _scroll_road_segments(delta: float, speed: float) -> void:
 	if road_segments.is_empty():
 		return
-	var dz: float = LANE_SCROLL_SPEED * delta
+	var dz: float = speed * delta
 	for seg in road_segments:
 		seg.position.z += dz
 	var min_z: float = INF
@@ -811,10 +819,10 @@ func _scroll_road_segments(delta: float) -> void:
 			seg.position.z = min_z
 
 
-func _scroll_fences(delta: float) -> void:
+func _scroll_fences(delta: float, speed: float) -> void:
 	if fences.is_empty():
 		return
-	var dz: float = LANE_SCROLL_SPEED * delta
+	var dz: float = speed * delta
 	for fence_inst in fences:
 		if not is_instance_valid(fence_inst):
 			continue

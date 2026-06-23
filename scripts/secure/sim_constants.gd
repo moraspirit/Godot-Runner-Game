@@ -1,6 +1,6 @@
 extends Node
 
-const SIM_VERSION: int = 6
+const SIM_VERSION: int = 8
 const CLIENT_BUILD: String = "dev"
 
 const NUM_LANES: int = 3
@@ -10,6 +10,8 @@ const SEGMENT_LENGTH: float = 2000.0
 const CHUNK_LENGTH: float = 200.0
 
 const SCROLL_SPEED: float = 15.0
+const SPEED_RAMP_INTERVAL_SEC: float = 10.0
+const SPEED_RAMP_INCREMENT: float = 2.0
 const LANE_SWITCH_SPEED: float = 14.0
 const LANE_SWITCH_COOLDOWN_MS: int = 100
 
@@ -49,3 +51,41 @@ const COIN_COUNT_MAX: int = 22
 const EXTRA_COIN_BURST_CHANCE: float = 0.82
 const EXTRA_COIN_BURST_MIN: int = 10
 const EXTRA_COIN_BURST_MAX: int = 16
+
+
+static func scroll_speed_at_sec(elapsed_sec: float) -> float:
+	if elapsed_sec < 0.0:
+		elapsed_sec = 0.0
+	var tier: int = int(floor(elapsed_sec / SPEED_RAMP_INTERVAL_SEC))
+	return SCROLL_SPEED + float(tier) * SPEED_RAMP_INCREMENT
+
+
+static func duration_ms_for_distance(distance: float) -> float:
+	if distance <= 0.0:
+		return 0.0
+	var remaining: float = distance
+	var tier: int = 0
+	var ms: float = 0.0
+	while remaining > 0.0:
+		var speed: float = scroll_speed_at_sec(float(tier) * SPEED_RAMP_INTERVAL_SEC)
+		var tier_dist: float = speed * SPEED_RAMP_INTERVAL_SEC
+		if remaining <= tier_dist:
+			ms += (remaining / speed) * 1000.0
+			return ms
+		remaining -= tier_dist
+		ms += SPEED_RAMP_INTERVAL_SEC * 1000.0
+		tier += 1
+	return ms
+
+
+static func distance_at_duration_ms(duration_ms: int) -> float:
+	if duration_ms <= 0:
+		return 0.0
+	var elapsed: float = float(duration_ms) / 1000.0
+	var tier: int = int(floor(elapsed / SPEED_RAMP_INTERVAL_SEC))
+	var rem: float = elapsed - float(tier) * SPEED_RAMP_INTERVAL_SEC
+	var dist: float = 0.0
+	for i in tier:
+		dist += scroll_speed_at_sec(float(i) * SPEED_RAMP_INTERVAL_SEC) * SPEED_RAMP_INTERVAL_SEC
+	dist += scroll_speed_at_sec(float(tier) * SPEED_RAMP_INTERVAL_SEC) * rem
+	return dist

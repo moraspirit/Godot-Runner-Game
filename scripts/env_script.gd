@@ -19,7 +19,10 @@ func _process(delta):
 	var level := get_tree().get_first_node_in_group("level")
 	if level and level.has_method("is_world_active") and not level.is_world_active():
 		return
-	global_translate(Vector3(0, 0, 15.0 * delta))
+	var speed: float = SimConstants.SCROLL_SPEED
+	if level and level.has_method("get_scroll_speed"):
+		speed = level.get_scroll_speed()
+	global_translate(Vector3(0, 0, speed * delta))
 
 
 func timer_timeout():
