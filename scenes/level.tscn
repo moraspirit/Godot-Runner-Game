@@ -6,9 +6,9 @@
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.36, 0.56, 0.86, 1)
-sky_horizon_color = Color(0.66, 0.72, 0.82, 1)
+sky_horizon_color = Color(0.42, 0.62, 0.9, 1)
 ground_bottom_color = Color(0.55, 0.62, 0.62, 1)
-ground_horizon_color = Color(0.66, 0.72, 0.82, 1)
+ground_horizon_color = Color(0.48, 0.66, 0.88, 1)
 
 [sub_resource type="Sky" id="Sky"]
 sky_material = SubResource("SkyMat")
@@ -20,14 +20,15 @@ ambient_light_source = 3
 tonemap_mode = 2
 fog_enabled = true
 fog_mode = 1
-fog_light_color = Color(0.72, 0.78, 0.86, 1)
+fog_light_color = Color(0.45, 0.64, 0.92, 1)
 fog_density = 1.0
+fog_sky_affect = 0.45
 fog_depth_curve = 1.2
 fog_depth_begin = 18.0
 fog_depth_end = 54.0
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
-size = Vector2(200, 130)
+size = Vector2(80, 75)
 
 [node name="level" type="Node" unique_id=14483789]
 script = ExtResource("5")
@@ -55,10 +56,10 @@ mesh = SubResource("PlaneMesh_ground")
 surface_material_override/0 = ExtResource("3")
 
 [node name="sun" type="DirectionalLight3D" parent="." unique_id=251279499]
-transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, 0, 10, 0)
-light_color = Color(1, 0.95, 0.84, 1)
+transform = Transform3D(1, 0, 0, 0, 0.64278805, -0.7660441, 0, 0.7660441, 0.64278805, 0, 9.048208, 0.13516426)
 light_energy = 0.9
-shadow_enabled = false
+light_bake_mode = 1
+directional_shadow_mode = 0
 
 [connection signal="timeout" from="spawn_timer" to="." method="_on_spawn_timer_timeout"]
 [connection signal="timeout" from="spawn_env_timer" to="." method="_on_spawn_env_timer_timeout"]
