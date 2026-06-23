@@ -33,7 +33,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     env:
-      GODOT_VERSION: 4.6.0
+      GODOT_VERSION: 4.6.3
       EXPORT_PRESET: Web
       API_BASE_URL: ${{ vars.API_BASE_URL }}
 
@@ -101,6 +101,7 @@ jobs:
           BUILD_ID="${GITHUB_SHA:0:12}" SIM_VERSION=8 REPO_ROOT="$PWD" python3 scripts/post_export_web.py
           test -f build/web/index.html
           test -f build/web/CNAME
+          ls build/web/index.*.audio.worklet.js build/web/index.*.audio.position.worklet.js
           echo "Build sizes:"
           ls -lh build/web/index.*.pck build/web/index.*.wasm build/web/index.*.js build/web/CNAME build/web/version.json 2>/dev/null || true
 

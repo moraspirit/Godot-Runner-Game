@@ -80,6 +80,25 @@ document.addEventListener('pointerdown', function () {
 	if "godot_audio_ctx" not in html:
 		html = html.replace("</head>", f"{audio_unlock}\t</head>", 1)
 
+	ios_webgl = """
+\t\t<script>
+(function () {
+\tvar canvas = document.getElementById('canvas');
+\tif (!canvas) return;
+\tcanvas.addEventListener('webglcontextlost', function (e) {
+\t\te.preventDefault();
+\t\tvar notice = document.getElementById('status-notice');
+\t\tvar overlay = document.getElementById('status');
+\t\tif (notice) notice.textContent = 'Graphics reset — reloading…';
+\t\tif (overlay) { overlay.style.visibility = 'visible'; }
+\t\tsetTimeout(function () { location.reload(); }, 600);
+\t}, false);
+})();
+\t\t</script>
+"""
+	if "webglcontextlost" not in html:
+		html = html.replace("</head>", f"{ios_webgl}\t</head>", 1)
+
 	check_script = f"""
 \t\t<script>
 (function () {{
@@ -120,8 +139,10 @@ document.addEventListener('pointerdown', function () {
 	print(f"post_export_web: build={build} sim_version={sim_version}")
 	for ext in (".wasm", ".pck", ".js", ".audio.worklet.js", ".audio.position.worklet.js"):
 		p = web / f"{prefix}{ext}"
-		if p.is_file():
-			print(f"  {p.name} ({p.stat().st_size // 1024} KiB)")
+		if not p.is_file():
+			print(f"error: missing required artifact {p.name}", file=sys.stderr)
+			return 1
+		print(f"  {p.name} ({p.stat().st_size // 1024} KiB)")
 	return 0
 
 

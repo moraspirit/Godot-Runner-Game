@@ -59,6 +59,10 @@ slide={
 ]
 }
 
+[audio]
+
+general/default_playback_type.web=2
+
 [rendering]
 
 renderer/rendering_method="mobile"

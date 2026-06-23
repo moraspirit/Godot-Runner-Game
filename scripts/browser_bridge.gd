@@ -2,6 +2,112 @@ extends Node
 
 ## Web localStorage + fullscreen helpers. Safe no-ops on desktop/native.
 
+signal page_backgrounded
+signal page_foregrounded
+
+var _web_backgrounded: bool = false
+
+func _ready() -> void:
+	if OS.has_feature("web"):
+		call_deferred("_install_page_visibility_hook")
+
+
+func _notification(what: int) -> void:
+	if not OS.has_feature("web"):
+		return
+	match what:
+		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED:
+			_on_page_background()
+		NOTIFICATION_APPLICATION_FOCUS_IN, NOTIFICATION_APPLICATION_RESUMED:
+			_on_page_foreground()
+
+
+func _install_page_visibility_hook() -> void:
+	JavaScriptBridge.eval("""
+(function () {
+	if (window.__runnerVisibilityHook) return;
+	window.__runnerVisibilityHook = true;
+	document.addEventListener('visibilitychange', function () {
+		if (document.hidden) {
+			try {
+				var ae = document.activeElement;
+				if (ae && ae.blur) ae.blur();
+			} catch (e) {}
+			try {
+				if (window.Godot && Godot.audioCtx && Godot.audioCtx.state === 'running') {
+					Godot.audioCtx.suspend();
+				}
+			} catch (e) {}
+		} else {
+			try {
+				if (window.Godot && Godot.audioCtx && Godot.audioCtx.state === 'suspended') {
+					Godot.audioCtx.resume();
+				}
+			} catch (e) {}
+		}
+	});
+	var canvas = document.getElementById('canvas');
+	if (!canvas) return;
+	canvas.addEventListener('webglcontextlost', function (e) {
+		e.preventDefault();
+		setTimeout(function () {
+			try { location.reload(); } catch (err) {}
+		}, 400);
+	}, false);
+})();
+""", true)
+
+
+func _on_page_background() -> void:
+	if _web_backgrounded:
+		return
+	_web_backgrounded = true
+	dismiss_virtual_keyboard()
+	_suspend_web_audio()
+	page_backgrounded.emit()
+
+
+func _on_page_foreground() -> void:
+	if not _web_backgrounded:
+		return
+	_web_backgrounded = false
+	_resume_web_audio()
+	page_foregrounded.emit()
+
+
+func _suspend_web_audio() -> void:
+	_stop_group("web_audio")
+	JavaScriptBridge.eval("""
+(function () {
+	try {
+		if (window.Godot && Godot.audioCtx && Godot.audioCtx.state === 'running') {
+			Godot.audioCtx.suspend();
+		}
+	} catch (e) {}
+})();
+""", true)
+
+
+func _resume_web_audio() -> void:
+	if GameSettings.sound_enabled:
+		JavaScriptBridge.eval("""
+(function () {
+	try {
+		if (window.Godot && Godot.audioCtx && Godot.audioCtx.state === 'suspended') {
+			Godot.audioCtx.resume();
+		}
+	} catch (e) {}
+})();
+""", true)
+
+
+func _stop_group(group_name: String) -> void:
+	for node in get_tree().get_nodes_in_group(group_name):
+		if node is AudioStreamPlayer:
+			(node as AudioStreamPlayer).stop()
+		elif node is AudioStreamPlayer3D:
+			(node as AudioStreamPlayer3D).stop()
+
 
 func storage_set(key: String, value: String) -> void:
 	if OS.has_feature("web"):

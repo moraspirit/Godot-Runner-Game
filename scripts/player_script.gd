@@ -2,7 +2,7 @@ extends CharacterBody3D
 
 const PLAYER_MODEL: String = "res://models/anime-girl/anime-girl.glb"
 
-@onready var audio_player: AudioStreamPlayer3D = $AudioStreamPlayer3D
+@onready var audio_player: AudioStreamPlayer = $CoinSFX
 @onready var death_audio: AudioStreamPlayer = $DeathSFX
 var anim_player: AnimationPlayer
 
@@ -77,6 +77,10 @@ func _ready() -> void:
 		AuthSession.profile_updated.connect(_on_profile_updated)
 	if death_audio:
 		death_audio.process_mode = Node.PROCESS_MODE_ALWAYS
+		death_audio.add_to_group("web_audio")
+	if audio_player:
+		audio_player.add_to_group("web_audio")
+		audio_player.max_polyphony = 1
 	call_deferred("_layout_hud_panels")
 	_refresh_coin_hud()
 

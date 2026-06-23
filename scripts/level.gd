@@ -91,7 +91,10 @@ func _ready():
 		randomize()
 
 	_setup_bgm()
-	call_deferred("_start_bgm_on_load")
+	if not BrowserBridge.page_backgrounded.is_connected(_on_page_background):
+		BrowserBridge.page_backgrounded.connect(_on_page_background)
+	if not BrowserBridge.page_foregrounded.is_connected(_on_page_foreground):
+		BrowserBridge.page_foregrounded.connect(_on_page_foreground)
 
 
 func _setup_fences() -> void:
@@ -110,18 +113,36 @@ func _setup_bgm() -> void:
 	_bgm_player.name = "BackgroundMusic"
 	_bgm_player.stream = BGM
 	_bgm_player.volume_db = -10.0
+	_bgm_player.max_polyphony = 1
+	_bgm_player.add_to_group("web_audio")
 	add_child(_bgm_player)
+	if OS.has_feature("web"):
+		_apply_web_gpu_savings()
 
 
-func _start_bgm_on_load() -> void:
+func _on_page_background() -> void:
+	if _bgm_player and _bgm_player.playing:
+		_bgm_player.stop()
+
+
+func _on_page_foreground() -> void:
+	if _bgm_player and GameSettings.sound_enabled and player and player.game_started:
+		if not _bgm_player.playing:
+			_bgm_player.play()
+
+
+func begin_run() -> void:
 	BrowserBridge.unlock_web_audio()
 	if _bgm_player and GameSettings.sound_enabled and not _bgm_player.playing:
 		_bgm_player.play()
 
 
-func begin_run() -> void:
-	if _bgm_player and not _bgm_player.playing:
-		_bgm_player.play()
+func _apply_web_gpu_savings() -> void:
+	var world_env := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if world_env and world_env.environment:
+		world_env.environment.fog_enabled = false
+	if spawn_env_timer:
+		spawn_env_timer.wait_time = 3.0
 
 
 func _boot_secure_segment() -> void:
