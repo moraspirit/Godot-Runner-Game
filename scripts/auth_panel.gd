@@ -52,9 +52,9 @@ func _build_ui() -> void:
 	_title.add_theme_font_size_override("font_size", BrowserBridge.popup_title_font())
 	_title.add_theme_color_override("font_color", Color(1, 0.88, 0.35))
 
-	_index_field = _field(box, "Index number")
-	_name_field = _field(box, "Name (leaderboard)")
-	_phone_field = _field(box, "Phone number")
+	_index_field = _field(box, "Index number", LineEdit.KEYBOARD_TYPE_DEFAULT)
+	_name_field = _field(box, "Name (leaderboard)", LineEdit.KEYBOARD_TYPE_DEFAULT)
+	_phone_field = _field(box, "Phone number", LineEdit.KEYBOARD_TYPE_PHONE)
 
 	_status = Label.new()
 	box.add_child(_status)
@@ -80,14 +80,24 @@ func _build_ui() -> void:
 	_set_mode("login")
 
 
-func _field(parent: Control, placeholder: String) -> LineEdit:
+func _field(parent: Control, placeholder: String, keyboard_type: LineEdit.KeyboardType = LineEdit.KEYBOARD_TYPE_DEFAULT) -> LineEdit:
 	var f := LineEdit.new()
 	parent.add_child(f)
 	f.placeholder_text = placeholder
 	f.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height() - 8)
 	f.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	f.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
+	f.keyboard_type = keyboard_type
+	f.caret_blink = true
+	if OS.has_feature("web"):
+		# Web/mobile: first tap should focus the field; virtual keyboard is handled by export preset.
+		f.gui_input.connect(_on_field_gui_input.bind(f))
 	return f
+
+
+func _on_field_gui_input(event: InputEvent, field: LineEdit) -> void:
+	if event is InputEventScreenTouch and event.pressed:
+		field.grab_focus()
 
 
 func _panel_style() -> StyleBoxFlat:
