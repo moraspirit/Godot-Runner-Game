@@ -88,6 +88,32 @@ func _spawn_character() -> void:
 	model.transform = Transform3D(Basis(Vector3.UP, PI).scaled(Vector3(s, s, s)), Vector3.ZERO)
 	add_child(model)
 	anim_player = model.get_node("AnimationPlayer")
+	_matte_meshes(model)
+
+
+func _matte_meshes(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if mi.mesh:
+			for si in mi.mesh.get_surface_count():
+				var mat: Material = mi.get_surface_override_material(si)
+				if mat == null:
+					mat = mi.mesh.surface_get_material(si)
+				if mat == null:
+					continue
+				var flat := mat.duplicate()
+				if flat is StandardMaterial3D:
+					var sm := flat as StandardMaterial3D
+					sm.roughness = 1.0
+					sm.metallic = 0.0
+					sm.metallic_specular = 0.0
+					sm.roughness_texture = null
+					sm.metallic_texture = null
+					sm.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+				mi.set_surface_override_material(si, flat)
+	for child in node.get_children():
+		_matte_meshes(child)
+
 
 func _setup_hud() -> void:
 	var layer := CanvasLayer.new()

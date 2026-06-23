@@ -6,12 +6,8 @@ extends Node
 @onready var spawn_obstacle_timer: Timer = $spawn_obstacle_timer
 
 @onready var coin: PackedScene = preload("res://scenes/coin.tscn")
-@onready var fence: PackedScene = preload("res://models/cartoon-assets/fence.tscn")
 
-@onready var line_mat: ShaderMaterial = preload("res://models/linemat.tres")
 @onready var asphalt_mat: Material = preload("res://models/road_asphalt.tres")
-@onready var black_road_mat: Material = preload("res://models/road_black.tres")
-@onready var carpet_mat: Material = preload("res://models/road_carpet.tres")
 
 @onready var env_move_script = preload("res://scripts/env_script.gd")
 
@@ -34,18 +30,12 @@ var _last_tree: int = -1
 var _last_rock: int = -1
 
 const LANE_SCROLL_SPEED: float = 15.0
-var line_scroll: float = 0.0
 var run_distance: float = 0.0
-const KM_LENGTH: float = 1000.0
 
 var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
 
-const FENCE_COUNT: int = 30
-var fences: Array = []
-var fencez: float = 0.0
-
-# scrolling road strips — material set by 1 km zones (see _road_material_for_distance)
+# scrolling road strips
 const ROAD_SEGMENT_LEN: float = 5.0
 const ROAD_SEGMENT_COUNT: int = 28
 var road_segments: Array = []
@@ -91,16 +81,6 @@ func _ready():
 		call_deferred("_boot_secure_segment")
 	else:
 		randomize()
-
-	var z = 5
-	for i in FENCE_COUNT:
-		var fence_inst = fence.instantiate()
-		fence_inst.connect("body_entered", Callable(self, "fence_area_body_entered"))
-		fences.append(fence_inst)
-		add_child(fence_inst)
-		fence_inst.global_transform.origin = Vector3(0, 0, z)
-		z -= 1.5
-		fencez = z
 
 	_setup_bgm()
 
@@ -711,15 +691,6 @@ func _make_mover(template: MeshInstance3D) -> Node3D:
 	return mover
 
 
-func fence_area_body_entered():
-	if _game_stopped():
-		return
-	var first_fence = fences.front()
-	first_fence.global_transform.origin = Vector3(0, 0, fencez)
-	fences.pop_front()
-	fences.append(first_fence)
-
-
 func _on_spawn_timer_timeout():
 	if _game_stopped():
 		return
@@ -739,13 +710,11 @@ func _on_spawn_timer_timeout():
 func _on_spawn_env_timer_timeout():
 	if _game_stopped():
 		return
-	_spawn_tree(1)
-	_spawn_tree(-1)
+	var side: int = 1 if randf() < 0.5 else -1
+	_spawn_tree(side)
 	if randf() < 0.6:
-		_spawn_shrub(1)
-	if randf() < 0.6:
-		_spawn_shrub(-1)
-	spawn_env_timer.wait_time = randf_range(0.45, 0.8)
+		_spawn_shrub(side)
+	spawn_env_timer.wait_time = randf_range(1.5, 2.5)
 
 
 func _spawn_tree(dir: int) -> void:
@@ -816,33 +785,11 @@ const HIT_X: float = 0.9
 const JUMP_CLEAR_Y: float = 0.72
 
 
-func _road_material_for_distance(d: float) -> Material:
-	# km 0–1: normal asphalt, km 1–2: black vehicle road, km 2–3: carpet, then repeat
-	var zone: int = int(floor(d / KM_LENGTH)) % 3
-	match zone:
-		0:
-			return asphalt_mat
-		1:
-			return black_road_mat
-		_:
-			return carpet_mat
-
-
-func _update_road_materials() -> void:
-	for seg in road_segments:
-		# subtract z so new road types appear ahead (negative z) and scroll toward the player
-		var d: float = run_distance - seg.position.z
-		seg.material_override = _road_material_for_distance(d)
-
-
 func _process(delta: float) -> void:
 	if _game_stopped():
 		return
 	run_distance += LANE_SCROLL_SPEED * delta
-	line_scroll += LANE_SCROLL_SPEED * delta
-	line_mat.set_shader_parameter("scroll_offset", line_scroll)
 	_scroll_road_segments(delta)
-	_update_road_materials()
 	if SimConstants.SECURE_SPAWNS:
 		_process_secure_spawns()
 		_try_segment_checkpoint()
