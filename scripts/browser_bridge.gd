@@ -56,6 +56,34 @@ func unlock_web_audio() -> void:
 })();
 """, true)
 
+
+func focus_canvas() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("""
+(function () {
+  var c = document.getElementById('canvas');
+  if (c && c.focus) c.focus();
+})();
+""", true)
+
+
+func dismiss_virtual_keyboard() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("""
+(function () {
+  try {
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) ae.blur();
+    document.querySelectorAll('input, textarea').forEach(function (el) {
+      if (el && el.style && el.style.position === 'fixed') el.blur();
+    });
+  } catch (e) {}
+})();
+""", true)
+
+
 func request_fullscreen() -> void:
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("""
@@ -107,6 +135,23 @@ func apply_wide_popup(panel: Control, height_ratio: float = 0.58) -> void:
 	panel.offset_right = -edge
 	panel.offset_top = -h * 0.5
 	panel.offset_bottom = h * 0.5
+
+
+## Auth/login popup pinned to top — keeps buttons clear of the mobile virtual keyboard.
+func apply_top_auth_popup(panel: Control) -> void:
+	var edge := popup_edge_margin()
+	var vp := get_viewport().get_visible_rect().size
+	var top := popup_vertical_margin() * 0.35
+	var h := vp.y * (0.52 if is_mobile_viewport() else 0.56)
+	h = clampf(h, 300.0, vp.y - top - 80.0)
+	panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	panel.anchor_left = 0.0
+	panel.anchor_right = 1.0
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.offset_left = edge
+	panel.offset_right = -edge
+	panel.offset_top = top
+	panel.offset_bottom = top + h
 
 
 func popup_title_font() -> int:

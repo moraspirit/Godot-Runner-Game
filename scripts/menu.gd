@@ -44,8 +44,7 @@ func _ready() -> void:
 	_refresh_auth_ui()
 	if not AuthSession.auth_ready.is_connected(_on_auth_ready):
 		AuthSession.auth_ready.connect(_on_auth_ready)
-	if SimConstants.API_BASE != "" and not AuthSession.is_logged_in():
-		call_deferred("_maybe_show_auth")
+	# Login opens via PLAY ("LOGIN TO PLAY") or Settings — not forced on load.
 	if not ApiClient.request_finished.is_connected(_on_api_leaderboard):
 		ApiClient.request_finished.connect(_on_api_leaderboard)
 	if not AuthSession.profile_updated.is_connected(_on_profile_updated):
@@ -141,9 +140,12 @@ func _build_ui() -> void:
 	_build_overlay()
 	_build_settings_panel()
 
+	var auth_layer := CanvasLayer.new()
+	auth_layer.name = "AuthLayer"
+	auth_layer.layer = 100
+	add_child(auth_layer)
 	_auth_panel = load("res://scripts/auth_panel.gd").new()
-	add_child(_auth_panel)
-	_auth_panel.visible = false
+	auth_layer.add_child(_auth_panel)
 	_auth_panel.logged_in.connect(_on_logged_in)
 
 	_build_menu_top_bar()
@@ -302,14 +304,18 @@ func _refresh_auth_ui() -> void:
 	if _logout_btn:
 		_logout_btn.visible = AuthSession.is_logged_in()
 	if _play_btn:
-		_play_btn.disabled = needs_auth
+		_play_btn.disabled = false
 		_play_btn.text = "LOGIN TO PLAY" if needs_auth else "PLAY"
 	_refresh_menu_top_bar()
 
 
 func _show_auth_panel() -> void:
 	_hide_settings()
-	_auth_panel.visible = true
+	_hide_overlay()
+	if _auth_panel.has_method("open"):
+		_auth_panel.open()
+	else:
+		_auth_panel.visible = true
 
 
 func _on_logged_in() -> void:
@@ -557,6 +563,7 @@ func _on_update_required(message: String) -> void:
 
 
 func _on_play() -> void:
+	BrowserBridge.focus_canvas()
 	if SimConstants.API_BASE != "" and not AuthSession.is_logged_in():
 		_show_auth_panel()
 		return

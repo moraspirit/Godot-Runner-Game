@@ -11,40 +11,68 @@ var _phone_field: LineEdit
 var _status: Label
 var _submit_btn: Button
 var _toggle_btn: Button
+var _close_btn: Button
 var _busy: bool = false
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_ui()
 	if not ApiClient.request_finished.is_connected(_on_api_response):
 		ApiClient.request_finished.connect(_on_api_response)
+	visible = false
+
+
+func open() -> void:
+	BrowserBridge.focus_canvas()
+	BrowserBridge.dismiss_virtual_keyboard()
+	visible = true
+	get_node("AuthDim").visible = true
+	_panel.visible = true
+	call_deferred("_relayout_panel")
+
+
+func _relayout_panel() -> void:
+	if _panel:
+		BrowserBridge.apply_wide_popup(_panel, 0.68)
 
 
 func _build_ui() -> void:
 	var dim := ColorRect.new()
+	dim.name = "AuthDim"
 	add_child(dim)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.72)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.visible = false
+	dim.gui_input.connect(_on_dim_tapped)
 
 	_panel = PanelContainer.new()
+	_panel.name = "AuthPanel"
 	add_child(_panel)
-	BrowserBridge.apply_wide_popup(_panel, 0.56)
+	_panel.visible = false
+	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.add_theme_stylebox_override("panel", _panel_style())
 
 	var margin := MarginContainer.new()
 	_panel.add_child(margin)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 24)
-	margin.add_theme_constant_override("margin_right", 24)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_bottom", 24)
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	margin.add_child(scroll)
 
 	var box := VBoxContainer.new()
-	margin.add_child(box)
+	scroll.add_child(box)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", 16)
+	box.add_theme_constant_override("separation", 14)
 
 	_title = Label.new()
 	box.add_child(_title)
@@ -63,41 +91,125 @@ func _build_ui() -> void:
 	_status.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
 	_status.add_theme_color_override("font_color", Color(1, 0.55, 0.5))
 
-	_submit_btn = Button.new()
-	box.add_child(_submit_btn)
-	_submit_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
-	_submit_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_submit_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
-	_submit_btn.pressed.connect(_on_submit)
+	_submit_btn = _action_button(box, "LOGIN", Color(0.16, 0.72, 0.4))
+	_submit_btn.pressed.connect(_on_submit_pressed)
 
-	_toggle_btn = Button.new()
-	box.add_child(_toggle_btn)
-	_toggle_btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height() - 12)
-	_toggle_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_toggle_btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
+	_toggle_btn = _action_button(box, "Need an account? Register", Color(0.22, 0.38, 0.72))
 	_toggle_btn.pressed.connect(_toggle_mode)
+
+	_close_btn = _action_button(box, "CLOSE", Color(0.28, 0.32, 0.42))
+	_close_btn.pressed.connect(_on_close_pressed)
 
 	_set_mode("login")
 
 
-func _field(parent: Control, placeholder: String, keyboard_type: LineEdit.KeyboardType = LineEdit.KEYBOARD_TYPE_DEFAULT) -> LineEdit:
+func _action_button(parent: Control, text: String, col: Color) -> Button:
+	var btn := Button.new()
+	parent.add_child(btn)
+	btn.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height())
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
+	btn.text = text
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.add_theme_stylebox_override("normal", _pill(col))
+	btn.add_theme_stylebox_override("hover", _pill(col.lightened(0.08)))
+	btn.add_theme_stylebox_override("pressed", _pill(col.darkened(0.08)))
+	btn.add_theme_stylebox_override("disabled", _pill(col.darkened(0.2)))
+	return btn
+
+
+func _field(parent: Control, placeholder: String, keyboard_type: int = LineEdit.KEYBOARD_TYPE_DEFAULT) -> LineEdit:
 	var f := LineEdit.new()
 	parent.add_child(f)
 	f.placeholder_text = placeholder
 	f.custom_minimum_size = Vector2(0, BrowserBridge.popup_button_height() - 8)
 	f.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	f.add_theme_font_size_override("font_size", BrowserBridge.popup_body_font())
-	f.keyboard_type = keyboard_type
+	f.virtual_keyboard_type = keyboard_type
 	f.caret_blink = true
-	if OS.has_feature("web"):
-		# Web/mobile: first tap should focus the field; virtual keyboard is handled by export preset.
-		f.gui_input.connect(_on_field_gui_input.bind(f))
 	return f
 
 
-func _on_field_gui_input(event: InputEvent, field: LineEdit) -> void:
+func _on_dim_tapped(event: InputEvent) -> void:
+	if _busy:
+		return
 	if event is InputEventScreenTouch and event.pressed:
-		field.grab_focus()
+		_close()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_close()
+
+
+func _on_close_pressed() -> void:
+	if _busy:
+		return
+	_close()
+
+
+func _close() -> void:
+	BrowserBridge.dismiss_virtual_keyboard()
+	for field in [_index_field, _name_field, _phone_field]:
+		if field:
+			field.release_focus()
+	visible = false
+	get_node("AuthDim").visible = false
+	_panel.visible = false
+
+
+func _on_submit_pressed() -> void:
+	_run_submit()
+
+
+func _run_submit() -> void:
+	if _busy:
+		return
+	await _sync_fields_from_keyboard()
+	if _busy:
+		return
+
+	var index_num := _index_field.text.strip_edges()
+	var phone := _phone_field.text.strip_edges()
+	if index_num == "" or phone == "":
+		_show_status("Index number and phone are required.")
+		return
+
+	_busy = true
+	_submit_btn.disabled = true
+	_toggle_btn.disabled = true
+	_close_btn.disabled = true
+	_show_status("Please wait…")
+
+	if _mode == "login":
+		ApiClient.post_unsigned("/v1/auth/login", {
+			"index_number": index_num,
+			"phone_number": phone,
+		})
+	else:
+		var display_name := _name_field.text.strip_edges()
+		if display_name == "":
+			_show_status("Name is required for registration.")
+			_busy = false
+			_submit_btn.disabled = false
+			_toggle_btn.disabled = false
+			_close_btn.disabled = false
+			return
+		ApiClient.post_unsigned("/v1/auth/register", {
+			"index_number": index_num,
+			"name": display_name,
+			"phone_number": phone,
+		})
+
+
+func _sync_fields_from_keyboard() -> void:
+	BrowserBridge.dismiss_virtual_keyboard()
+	for field in [_index_field, _name_field, _phone_field]:
+		if field and field.has_focus():
+			field.release_focus()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _show_status(msg: String) -> void:
+	_status.text = msg
 
 
 func _panel_style() -> StyleBoxFlat:
@@ -130,43 +242,12 @@ func _set_mode(mode: String) -> void:
 	_submit_btn.text = "LOGIN" if is_login else "REGISTER"
 	_submit_btn.add_theme_stylebox_override("normal", _pill(Color(0.16, 0.72, 0.4) if is_login else Color(0.22, 0.38, 0.72)))
 	_toggle_btn.text = "Need an account? Register" if is_login else "Already registered? Login"
-	_status.text = ""
+	_show_status("")
 
 
 func _toggle_mode() -> void:
+	BrowserBridge.dismiss_virtual_keyboard()
 	_set_mode("register" if _mode == "login" else "login")
-
-
-func _on_submit() -> void:
-	if _busy:
-		return
-	var index_num := _index_field.text.strip_edges()
-	var phone := _phone_field.text.strip_edges()
-	if index_num == "" or phone == "":
-		_status.text = "Index number and phone are required."
-		return
-
-	_busy = true
-	_submit_btn.disabled = true
-	_status.text = "Please wait…"
-
-	if _mode == "login":
-		ApiClient.post_unsigned("/v1/auth/login", {
-			"index_number": index_num,
-			"phone_number": phone,
-		})
-	else:
-		var display_name := _name_field.text.strip_edges()
-		if display_name == "":
-			_status.text = "Name is required for registration."
-			_busy = false
-			_submit_btn.disabled = false
-			return
-		ApiClient.post_unsigned("/v1/auth/register", {
-			"index_number": index_num,
-			"name": display_name,
-			"phone_number": phone,
-		})
 
 
 func _on_api_response(path: String, success: bool, status: int, body: Dictionary) -> void:
@@ -174,13 +255,15 @@ func _on_api_response(path: String, success: bool, status: int, body: Dictionary
 		return
 	_busy = false
 	_submit_btn.disabled = false
+	_toggle_btn.disabled = false
+	_close_btn.disabled = false
 	if success:
 		AuthSession.set_auth(body)
-		visible = false
+		_close()
 		logged_in.emit()
 	else:
 		var err := str(body.get("error", body.get("message", body.get("raw", "Request failed"))))
-		_status.text = _format_auth_error(err, status)
+		_show_status(_format_auth_error(err, status))
 
 
 func _format_auth_error(err: String, status: int) -> String:
@@ -191,4 +274,6 @@ func _format_auth_error(err: String, status: int) -> String:
 			return "That name is already taken — choose another."
 		"invalid_credentials":
 			return "Index number or phone number is incorrect."
+		"connection_failed", "timeout", "request_failed":
+			return "Cannot reach server. Check your connection and try again."
 	return "%s (%d)" % [err, status]
