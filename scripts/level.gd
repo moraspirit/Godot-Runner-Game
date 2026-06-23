@@ -851,6 +851,10 @@ func _physics_process(_delta: float) -> void:
 				var oid: int = int(r.get_meta("object_id", -1))
 				var lane: int = int(r.get_meta("spawn_lane", _lane_index_from_x(rp.x)))
 				var dist: float = float(r.get_meta("map_distance", get_segment_distance()))
+				# Failed jump: jump_start is logged at takeoff; log land before crash so replay
+				# knows the player hit the rock low, not cleared it while airborne.
+				if player.is_jumping:
+					MoveLog.log_jump_land(dist)
 				MoveLog.log_collision(oid, lane, dist)
 				player.die()
 				RunSession.submit_finish(dist, "collision")
