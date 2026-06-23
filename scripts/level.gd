@@ -34,10 +34,12 @@ var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
 
 const FENCE_COUNT: int = 40
+const FENCE_COUNT_WEB: int = 14
 const FENCE_SPACING: float = 1.5
 const FENCE_WRAP_Z: float = 30.0
 var fences: Array = []
 var _fence_loop_len: float = FENCE_SPACING * FENCE_COUNT
+var _fence_count: int = FENCE_COUNT
 
 const ENV_TREE_X_MIN: float = 4.5
 const ENV_TREE_X_MAX: float = 7.0
@@ -45,6 +47,8 @@ const ENV_TREE_X_MAX: float = 7.0
 # scrolling road strips
 const ROAD_SEGMENT_LEN: float = 5.0
 const ROAD_SEGMENT_COUNT: int = 28
+const ROAD_SEGMENT_COUNT_WEB: int = 14
+var _road_segment_count: int = ROAD_SEGMENT_COUNT
 var road_segments: Array = []
 
 # roadside street-name boards
@@ -74,6 +78,10 @@ var _bgm_player: AudioStreamPlayer
 
 
 func _ready():
+	if OS.has_feature("web"):
+		_fence_count = FENCE_COUNT_WEB
+		_road_segment_count = ROAD_SEGMENT_COUNT_WEB
+		_fence_loop_len = FENCE_SPACING * _fence_count
 	add_to_group("level")
 	_load_nature()
 	_setup_road_segments()
@@ -98,9 +106,9 @@ func _ready():
 
 
 func _setup_fences() -> void:
-	_fence_loop_len = FENCE_SPACING * FENCE_COUNT
+	_fence_loop_len = FENCE_SPACING * _fence_count
 	var z: float = -_fence_loop_len * 0.5
-	for i in FENCE_COUNT:
+	for i in _fence_count:
 		var fence_inst: Node3D = fence.instantiate()
 		fences.append(fence_inst)
 		add_child(fence_inst)
@@ -109,6 +117,10 @@ func _setup_fences() -> void:
 
 
 func _setup_bgm() -> void:
+	if not BrowserBridge.web_use_audio():
+		if OS.has_feature("web"):
+			_apply_web_gpu_savings()
+		return
 	_bgm_player = AudioStreamPlayer.new()
 	_bgm_player.name = "BackgroundMusic"
 	_bgm_player.stream = BGM
@@ -132,17 +144,21 @@ func _on_page_foreground() -> void:
 
 
 func begin_run() -> void:
-	BrowserBridge.unlock_web_audio()
-	if _bgm_player and GameSettings.sound_enabled and not _bgm_player.playing:
-		_bgm_player.play()
+	if BrowserBridge.web_use_audio():
+		BrowserBridge.unlock_web_audio()
+		if _bgm_player and GameSettings.sound_enabled and not _bgm_player.playing:
+			_bgm_player.play()
 
 
 func _apply_web_gpu_savings() -> void:
 	var world_env := get_node_or_null("WorldEnvironment") as WorldEnvironment
 	if world_env and world_env.environment:
 		world_env.environment.fog_enabled = false
+		world_env.environment.background_mode = Environment.BG_COLOR
+		world_env.environment.background_color = Color(0.45, 0.64, 0.92)
 	if spawn_env_timer:
-		spawn_env_timer.wait_time = 3.0
+		spawn_env_timer.wait_time = 4.0
+		spawn_env_timer.stop()
 
 
 func _boot_secure_segment() -> void:
@@ -300,8 +316,8 @@ func _try_segment_checkpoint() -> void:
 
 
 func _setup_road_segments() -> void:
-	var z: float = -ROAD_SEGMENT_LEN * ROAD_SEGMENT_COUNT * 0.5
-	for i in ROAD_SEGMENT_COUNT:
+	var z: float = -ROAD_SEGMENT_LEN * _road_segment_count * 0.5
+	for i in _road_segment_count:
 		var seg := MeshInstance3D.new()
 		seg.name = "road_seg_%d" % i
 		var pm := PlaneMesh.new()

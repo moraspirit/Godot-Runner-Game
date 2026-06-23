@@ -271,7 +271,10 @@ func _build_settings_panel() -> void:
 	_add_menu_button(_settings_box, "WIN A TICKET", Color(0.55, 0.35, 0.12), func(): _show_overlay("Win a Ticket", WIN_TICKET_TEXT, true))
 	_add_menu_button(_settings_box, "ABOUT US", Color(0.28, 0.32, 0.42), func(): _show_overlay("About Us", ABOUT_US_TEXT, true))
 	_sound_btn = _add_menu_button(_settings_box, "", Color(0.28, 0.32, 0.42), _on_toggle_sound)
-	_refresh_sound_label()
+	if OS.has_feature("web"):
+		_sound_btn.visible = false
+	else:
+		_refresh_sound_label()
 
 	if not _is_mobile():
 		_add_menu_button(_settings_box, "QUIT", Color(0.45, 0.18, 0.18), _on_quit)

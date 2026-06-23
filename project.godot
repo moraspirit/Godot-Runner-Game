@@ -65,5 +65,5 @@ general/default_playback_type.web=2
 
 [rendering]
 
-renderer/rendering_method="mobile"
+renderer/rendering_method="gl_compatibility"
 environment/defaults/default_environment="res://default_env.tres"

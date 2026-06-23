@@ -59,6 +59,7 @@ def main() -> int:
 	html = re.sub(r'"executable"\s*:\s*"index"', f'"executable":"{prefix}"', html)
 	html = re.sub(r'"index\.pck"', f'"{prefix}.pck"', html)
 	html = re.sub(r'"index\.wasm"', f'"{prefix}.wasm"', html)
+	html = html.replace('"ensureCrossOriginIsolationHeaders":true', '"ensureCrossOriginIsolationHeaders":false')
 
 	meta = (
 		f'<meta name="runner-build" content="{build}">\n'
@@ -67,18 +68,17 @@ def main() -> int:
 	if 'name="runner-build"' not in html:
 		html = html.replace("<head>", f"<head>\n\t\t{meta}", 1)
 
-	audio_unlock = """
+	apple_boot = """
 \t\t<script>
-document.addEventListener('pointerdown', function () {
-\ttry {
-\t\tvar ctx = (window.Godot && Godot.audioCtx) || window.__godot_audio_ctx;
-\t\tif (ctx && ctx.state === 'suspended') ctx.resume();
-\t} catch (e) {}
-}, { once: true, capture: true });
+(function () {
+\tvar ua = navigator.userAgent || '';
+\twindow.__runnerAppleWeb = /iPhone|iPad|iPod/.test(ua)
+\t\t|| (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+})();
 \t\t</script>
 """
-	if "godot_audio_ctx" not in html:
-		html = html.replace("</head>", f"{audio_unlock}\t</head>", 1)
+	if "__runnerAppleWeb" not in html:
+		html = html.replace("<head>", f"<head>{apple_boot}", 1)
 
 	ios_webgl = """
 \t\t<script>

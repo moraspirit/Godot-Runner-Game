@@ -580,7 +580,7 @@ func _start_death() -> void:
 		_finish_success = false
 		_finish_data = {}
 	_finish_ui_finalized = false
-	if death_audio:
+	if death_audio and BrowserBridge.web_use_audio():
 		death_audio.play()
 	_play_anim(death_anim, false)
 	var death_wait: float = 1.5
@@ -678,7 +678,8 @@ func _on_collision_area_entered(area) -> void:
 		return
 	var parent = area.get_parent()
 	if parent.is_in_group("coins"):
-		audio_player.play()
+		if BrowserBridge.web_use_audio() and audio_player:
+			audio_player.play()
 		coin_count += 1
 		_refresh_coin_hud()
 		var level := get_tree().get_first_node_in_group("level")

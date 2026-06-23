@@ -6,10 +6,42 @@ signal page_backgrounded
 signal page_foregrounded
 
 var _web_backgrounded: bool = false
+var _apple_webkit: bool = false
+var _apple_webkit_checked: bool = false
+
 
 func _ready() -> void:
 	if OS.has_feature("web"):
 		call_deferred("_install_page_visibility_hook")
+		call_deferred("_apply_web_boot_tuning")
+
+
+func web_use_audio() -> bool:
+	return false if OS.has_feature("web") else GameSettings.sound_enabled
+
+
+func is_apple_webkit() -> bool:
+	if not OS.has_feature("web"):
+		return false
+	if not _apple_webkit_checked:
+		_apple_webkit_checked = true
+		var ua := str(JavaScriptBridge.eval("navigator.userAgent || ''", true))
+		_apple_webkit = (
+			"iPhone" in ua or "iPad" in ua or "iPod" in ua
+			or ("Macintosh" in ua and bool(JavaScriptBridge.eval("navigator.maxTouchPoints > 1", true)))
+		)
+	return _apple_webkit
+
+
+func _apply_web_boot_tuning() -> void:
+	if not OS.has_feature("web"):
+		return
+	var win := get_window()
+	if win == null:
+		return
+	if is_apple_webkit():
+		win.content_scale_factor = 0.72
+		win.size = Vector2i(540, 960)
 
 
 func _notification(what: int) -> void:
@@ -89,6 +121,8 @@ func _suspend_web_audio() -> void:
 
 
 func _resume_web_audio() -> void:
+	if not web_use_audio():
+		return
 	if GameSettings.sound_enabled:
 		JavaScriptBridge.eval("""
 (function () {
@@ -151,6 +185,8 @@ func storage_remove(key: String) -> void:
 
 
 func unlock_web_audio() -> void:
+	if not web_use_audio():
+		return
 	if not OS.has_feature("web"):
 		return
 	JavaScriptBridge.eval("""
