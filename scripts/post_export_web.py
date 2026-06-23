@@ -57,6 +57,19 @@ def main() -> int:
 	if 'name="runner-build"' not in html:
 		html = html.replace("<head>", f"<head>\n\t\t{meta}", 1)
 
+	audio_unlock = """
+\t\t<script>
+document.addEventListener('pointerdown', function () {
+\ttry {
+\t\tvar ctx = (window.Godot && Godot.audioCtx) || window.__godot_audio_ctx;
+\t\tif (ctx && ctx.state === 'suspended') ctx.resume();
+\t} catch (e) {}
+}, { once: true, capture: true });
+\t\t</script>
+"""
+	if "godot_audio_ctx" not in html:
+		html = html.replace("</head>", f"{audio_unlock}\t</head>", 1)
+
 	check_script = f"""
 \t\t<script>
 (function () {{
@@ -81,6 +94,8 @@ def main() -> int:
 		html = html.replace("<body>", f"<body>{check_script}", 1)
 
 	html_path.write_text(html, encoding="utf-8")
+
+	(web / ".nojekyll").write_text("", encoding="utf-8")
 
 	(web / "version.json").write_text(
 		json.dumps({"build": build, "sim_version": sim_version}, indent=2) + "\n",

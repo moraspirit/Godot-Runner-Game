@@ -91,6 +91,7 @@ func _ready():
 		randomize()
 
 	_setup_bgm()
+	call_deferred("_start_bgm_on_load")
 
 
 func _setup_fences() -> void:
@@ -110,6 +111,12 @@ func _setup_bgm() -> void:
 	_bgm_player.stream = BGM
 	_bgm_player.volume_db = -10.0
 	add_child(_bgm_player)
+
+
+func _start_bgm_on_load() -> void:
+	BrowserBridge.unlock_web_audio()
+	if _bgm_player and GameSettings.sound_enabled and not _bgm_player.playing:
+		_bgm_player.play()
 
 
 func begin_run() -> void:

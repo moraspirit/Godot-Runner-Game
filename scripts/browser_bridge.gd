@@ -44,6 +44,23 @@ func storage_remove(key: String) -> void:
 	cfg.save(path)
 
 
+var _web_audio_unlock_player: AudioStreamPlayer
+
+
+func unlock_web_audio() -> void:
+	if not OS.has_feature("web"):
+		return
+	if _web_audio_unlock_player == null:
+		_web_audio_unlock_player = AudioStreamPlayer.new()
+		var gen := AudioStreamGenerator.new()
+		gen.mix_rate = 22050
+		gen.buffer_length = 0.05
+		_web_audio_unlock_player.stream = gen
+		add_child(_web_audio_unlock_player)
+	if not _web_audio_unlock_player.playing:
+		_web_audio_unlock_player.play()
+
+
 func request_fullscreen() -> void:
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("""

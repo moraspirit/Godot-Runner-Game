@@ -560,6 +560,7 @@ func _on_play() -> void:
 	if SimConstants.API_BASE != "" and not AuthSession.is_logged_in():
 		_show_auth_panel()
 		return
+	BrowserBridge.unlock_web_audio()
 	BrowserBridge.request_fullscreen()
 	if _play_btn:
 		_play_btn.disabled = true
