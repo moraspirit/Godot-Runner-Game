@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 const PLAYER_MODEL: String = "res://models/anime-girl/anime-girl.glb"
+const COIN_SFX: AudioStream = preload("res://sounds/coinpickup.wav")
 
 @onready var audio_player: AudioStreamPlayer = $CoinSFX
 @onready var death_audio: AudioStreamPlayer = $DeathSFX
@@ -81,6 +82,8 @@ func _ready() -> void:
 		BrowserBridge.configure_audio_player(death_audio)
 	if audio_player:
 		audio_player.add_to_group("web_audio")
+		if audio_player.stream == null:
+			audio_player.stream = COIN_SFX
 		BrowserBridge.configure_audio_player(audio_player)
 	call_deferred("_layout_hud_panels")
 	_refresh_coin_hud()
@@ -694,4 +697,8 @@ func _on_collision_area_entered(area) -> void:
 func _play_coin_sfx() -> void:
 	if not GameSettings.sound_enabled or audio_player == null:
 		return
+	if audio_player.stream == null:
+		audio_player.stream = COIN_SFX
+	if OS.has_feature("web"):
+		BrowserBridge.unlock_web_audio()
 	audio_player.play()
