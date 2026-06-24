@@ -68,6 +68,46 @@ def main() -> int:
 	if 'name="runner-build"' not in html:
 		html = html.replace("<head>", f"<head>\n\t\t{meta}", 1)
 
+	html = html.replace(
+		"width=device-width, user-scalable=no, initial-scale=1.0",
+		"width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover",
+	)
+
+	mobile_css = """
+\t\t<style id="runner-mobile-fix">
+html, body {
+\twidth: 100%;
+\theight: 100%;
+\tposition: fixed;
+\toverflow: hidden;
+\t-webkit-touch-callout: none;
+}
+#canvas {
+\tposition: fixed;
+\tleft: 0;
+\ttop: 0;
+\twidth: 100%;
+\theight: 100%;
+\ttouch-action: none;
+}
+#status {
+\tpointer-events: none;
+}
+#status-notice {
+\tpointer-events: auto;
+}
+\t\t</style>
+"""
+	if "runner-mobile-fix" not in html:
+		html = html.replace("</head>", f"{mobile_css}\t</head>", 1)
+
+	if "setStatusMode('hidden');" in html and "canvas.focus" not in html.split("setStatusMode('hidden')")[1][:120]:
+		html = html.replace(
+			"setStatusMode('hidden');",
+			"setStatusMode('hidden');\n\t\t\tvar __c=document.getElementById('canvas');"
+			"if(__c){try{__c.focus({preventScroll:true});}catch(e){try{__c.focus();}catch(e2){}}}",
+		)
+
 	apple_boot = """
 \t\t<script>
 (function () {

@@ -54,6 +54,12 @@ func _ready() -> void:
 	if not VersionCheck.update_required.is_connected(_on_update_required):
 		VersionCheck.update_required.connect(_on_update_required)
 	call_deferred("_check_app_version")
+	call_deferred("_focus_web_canvas")
+
+
+func _focus_web_canvas() -> void:
+	if OS.has_feature("web"):
+		BrowserBridge.focus_canvas()
 
 
 func _apply_responsive_scale() -> void:

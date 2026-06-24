@@ -13,7 +13,6 @@ var _apple_webkit_checked: bool = false
 func _ready() -> void:
 	if OS.has_feature("web"):
 		call_deferred("_install_page_visibility_hook")
-		call_deferred("_apply_web_boot_tuning")
 
 
 func web_use_audio() -> bool:
@@ -31,17 +30,6 @@ func is_apple_webkit() -> bool:
 			or ("Macintosh" in ua and bool(JavaScriptBridge.eval("navigator.maxTouchPoints > 1", true)))
 		)
 	return _apple_webkit
-
-
-func _apply_web_boot_tuning() -> void:
-	if not OS.has_feature("web"):
-		return
-	var win := get_window()
-	if win == null:
-		return
-	if is_apple_webkit():
-		win.content_scale_factor = 0.72
-		win.size = Vector2i(540, 960)
 
 
 func _notification(what: int) -> void:
@@ -80,6 +68,12 @@ func _install_page_visibility_hook() -> void:
 	});
 	var canvas = document.getElementById('canvas');
 	if (!canvas) return;
+	canvas.setAttribute('tabindex', '0');
+	var focusCanvas = function () {
+		try { canvas.focus({ preventScroll: true }); } catch (e) { try { canvas.focus(); } catch (e2) {} }
+	};
+	document.addEventListener('touchstart', focusCanvas, { passive: true, capture: true });
+	document.addEventListener('pointerdown', focusCanvas, { passive: true, capture: true });
 	canvas.addEventListener('webglcontextlost', function (e) {
 		e.preventDefault();
 		setTimeout(function () {
@@ -205,7 +199,9 @@ func focus_canvas() -> void:
 	JavaScriptBridge.eval("""
 (function () {
   var c = document.getElementById('canvas');
-  if (c && c.focus) c.focus();
+  if (!c) return;
+  c.setAttribute('tabindex', '0');
+  try { c.focus({ preventScroll: true }); } catch (e) { try { c.focus(); } catch (e2) {} }
 })();
 """, true)
 
