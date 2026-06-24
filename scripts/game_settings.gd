@@ -6,9 +6,10 @@ const USER_ERROR_MSG := "Something went wrong. Try again."
 
 
 func _ready() -> void:
-	# Safari/WebKit often crashes when Godot initializes web audio (even before play).
 	if OS.has_feature("web"):
-		sound_enabled = false
+		var saved := BrowserBridge.storage_get("sound_enabled")
+		if saved != "":
+			sound_enabled = saved == "1"
 	apply_sound()
 
 
@@ -18,4 +19,8 @@ func apply_sound() -> void:
 
 func toggle_sound() -> void:
 	sound_enabled = not sound_enabled
+	if OS.has_feature("web"):
+		BrowserBridge.storage_set("sound_enabled", "1" if sound_enabled else "0")
+		if sound_enabled:
+			BrowserBridge.unlock_web_audio()
 	apply_sound()

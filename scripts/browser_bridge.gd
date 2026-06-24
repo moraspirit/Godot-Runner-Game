@@ -16,7 +16,7 @@ func _ready() -> void:
 
 
 func web_use_audio() -> bool:
-	return false if OS.has_feature("web") else GameSettings.sound_enabled
+	return GameSettings.sound_enabled
 
 
 func is_apple_webkit() -> bool:
@@ -186,7 +186,7 @@ func unlock_web_audio() -> void:
 	JavaScriptBridge.eval("""
 (function () {
   try {
-    var ctx = window.__godot_audio_ctx;
+    var ctx = (window.Godot && Godot.audioCtx) || window.__godot_audio_ctx;
     if (ctx && ctx.state === 'suspended') ctx.resume();
   } catch (e) {}
 })();

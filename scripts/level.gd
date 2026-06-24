@@ -111,8 +111,6 @@ func _setup_fences() -> void:
 
 
 func _setup_bgm() -> void:
-	if not BrowserBridge.web_use_audio():
-		return
 	_bgm_player = AudioStreamPlayer.new()
 	_bgm_player.name = "BackgroundMusic"
 	_bgm_player.stream = BGM
@@ -134,10 +132,11 @@ func _on_page_foreground() -> void:
 
 
 func begin_run() -> void:
-	if BrowserBridge.web_use_audio():
-		BrowserBridge.unlock_web_audio()
-		if _bgm_player and GameSettings.sound_enabled and not _bgm_player.playing:
-			_bgm_player.play()
+	if not GameSettings.sound_enabled:
+		return
+	BrowserBridge.unlock_web_audio()
+	if _bgm_player and not _bgm_player.playing:
+		_bgm_player.play()
 
 
 func _boot_secure_segment() -> void:

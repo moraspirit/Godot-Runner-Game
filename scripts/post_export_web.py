@@ -120,6 +120,19 @@ html, body {
 	if "__runnerAppleWeb" not in html:
 		html = html.replace("<head>", f"<head>{apple_boot}", 1)
 
+	audio_unlock = """
+\t\t<script id="runner-audio-unlock">
+document.addEventListener('pointerdown', function () {
+\ttry {
+\t\tvar ctx = (window.Godot && Godot.audioCtx) || window.__godot_audio_ctx;
+\t\tif (ctx && ctx.state === 'suspended') ctx.resume();
+\t} catch (e) {}
+}, { once: true, capture: true });
+\t\t</script>
+"""
+	if "runner-audio-unlock" not in html:
+		html = html.replace("</head>", f"{audio_unlock}\t</head>", 1)
+
 	ios_webgl = """
 \t\t<script>
 (function () {
