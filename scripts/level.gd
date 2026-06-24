@@ -34,7 +34,6 @@ var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
 
 const FENCE_COUNT: int = 40
-const FENCE_COUNT_WEB: int = 14
 const FENCE_SPACING: float = 1.5
 const FENCE_WRAP_Z: float = 30.0
 var fences: Array = []
@@ -47,7 +46,6 @@ const ENV_TREE_X_MAX: float = 7.0
 # scrolling road strips
 const ROAD_SEGMENT_LEN: float = 5.0
 const ROAD_SEGMENT_COUNT: int = 28
-const ROAD_SEGMENT_COUNT_WEB: int = 14
 var _road_segment_count: int = ROAD_SEGMENT_COUNT
 var road_segments: Array = []
 
@@ -78,10 +76,6 @@ var _bgm_player: AudioStreamPlayer
 
 
 func _ready():
-	if OS.has_feature("web"):
-		_fence_count = FENCE_COUNT_WEB
-		_road_segment_count = ROAD_SEGMENT_COUNT_WEB
-		_fence_loop_len = FENCE_SPACING * _fence_count
 	add_to_group("level")
 	_load_nature()
 	_setup_road_segments()
@@ -118,8 +112,6 @@ func _setup_fences() -> void:
 
 func _setup_bgm() -> void:
 	if not BrowserBridge.web_use_audio():
-		if OS.has_feature("web"):
-			_apply_web_gpu_savings()
 		return
 	_bgm_player = AudioStreamPlayer.new()
 	_bgm_player.name = "BackgroundMusic"
@@ -128,8 +120,6 @@ func _setup_bgm() -> void:
 	_bgm_player.max_polyphony = 1
 	_bgm_player.add_to_group("web_audio")
 	add_child(_bgm_player)
-	if OS.has_feature("web"):
-		_apply_web_gpu_savings()
 
 
 func _on_page_background() -> void:
@@ -148,17 +138,6 @@ func begin_run() -> void:
 		BrowserBridge.unlock_web_audio()
 		if _bgm_player and GameSettings.sound_enabled and not _bgm_player.playing:
 			_bgm_player.play()
-
-
-func _apply_web_gpu_savings() -> void:
-	var world_env := get_node_or_null("WorldEnvironment") as WorldEnvironment
-	if world_env and world_env.environment:
-		world_env.environment.fog_enabled = false
-		world_env.environment.background_mode = Environment.BG_COLOR
-		world_env.environment.background_color = Color(0.45, 0.64, 0.92)
-	if spawn_env_timer:
-		spawn_env_timer.wait_time = 4.0
-		spawn_env_timer.stop()
 
 
 func _boot_secure_segment() -> void:
