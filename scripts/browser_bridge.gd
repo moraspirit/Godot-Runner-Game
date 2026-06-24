@@ -19,6 +19,18 @@ func web_use_audio() -> bool:
 	return GameSettings.sound_enabled
 
 
+func configure_audio_player(player: AudioStreamPlayer, music: bool = false) -> void:
+	if player == null:
+		return
+	if OS.has_feature("web") and is_apple_webkit():
+		# Safari/WebKit: stream avoids sample worklet memory leaks.
+		player.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
+	elif OS.has_feature("web"):
+		# Chrome/Android/desktop web: samples = near-instant one-shots.
+		player.playback_type = AudioServer.PLAYBACK_TYPE_SAMPLE
+	player.max_polyphony = 1 if music else 8
+
+
 func is_apple_webkit() -> bool:
 	if not OS.has_feature("web"):
 		return false

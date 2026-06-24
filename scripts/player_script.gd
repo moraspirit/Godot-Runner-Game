@@ -78,9 +78,10 @@ func _ready() -> void:
 	if death_audio:
 		death_audio.process_mode = Node.PROCESS_MODE_ALWAYS
 		death_audio.add_to_group("web_audio")
+		BrowserBridge.configure_audio_player(death_audio)
 	if audio_player:
 		audio_player.add_to_group("web_audio")
-		audio_player.max_polyphony = 1
+		BrowserBridge.configure_audio_player(audio_player)
 	call_deferred("_layout_hud_panels")
 	_refresh_coin_hud()
 
@@ -274,6 +275,9 @@ func _on_start_pressed() -> void:
 	if game_started or game_over or is_dead or _countdown_running:
 		return
 	BrowserBridge.unlock_web_audio()
+	var level := get_tree().get_first_node_in_group("level")
+	if level and level.has_method("begin_run"):
+		level.begin_run()
 	_countdown_running = true
 	if _start_btn:
 		_start_btn.disabled = true
@@ -287,9 +291,6 @@ func _on_start_pressed() -> void:
 	if _start_overlay:
 		_start_overlay.visible = false
 	_play_anim(run_anim, true)
-	var level := get_tree().get_first_node_in_group("level")
-	if level and level.has_method("begin_run"):
-		level.begin_run()
 
 
 func _run_start_countdown() -> void:
@@ -678,8 +679,7 @@ func _on_collision_area_entered(area) -> void:
 		return
 	var parent = area.get_parent()
 	if parent.is_in_group("coins"):
-		if GameSettings.sound_enabled and audio_player:
-			audio_player.play()
+		_play_coin_sfx()
 		coin_count += 1
 		_refresh_coin_hud()
 		var level := get_tree().get_first_node_in_group("level")
@@ -689,3 +689,9 @@ func _on_collision_area_entered(area) -> void:
 			var dist: float = float(parent.get_meta("map_distance", level.get_segment_distance()))
 			MoveLog.log_coin(oid, lane, dist)
 		parent.queue_free()
+
+
+func _play_coin_sfx() -> void:
+	if not GameSettings.sound_enabled or audio_player == null:
+		return
+	audio_player.play()

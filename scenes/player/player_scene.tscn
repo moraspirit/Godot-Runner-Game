@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://vqbje6mv5arl"]
 
 [ext_resource type="Script" uid="uid://71htmjvl5sa4" path="res://scripts/player_script.gd" id="2"]
-[ext_resource type="AudioStream" uid="uid://cbhciugcj2sal" path="res://sounds/coinpickup.mp3" id="3"]
+[ext_resource type="AudioStream" uid="uid://djijr0suhkcg5" path="res://sounds/coinpickup.wav" id="3"]
 [ext_resource type="AudioStream" uid="uid://ccpowfjgpak7u" path="res://sounds/dead-sound.mp3" id="4"]
 
 [sub_resource type="CapsuleShape3D" id="1"]
