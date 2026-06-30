@@ -79,7 +79,7 @@ var _bgm_player: AudioStreamPlayer
 
 func _ready():
 	add_to_group("level")
-	_load_nature()
+	call_deferred("_load_nature_deferred")
 	_setup_road_segments()
 	_setup_fences()
 	_setup_signs()
@@ -687,6 +687,13 @@ func _add_concert_sign(root: Node3D, title: String, date_line: String, rot_y: fl
 	date_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	date_label.position = Vector3(0.0, 3.28, 0.1)
 	root.add_child(date_label)
+
+
+func _load_nature_deferred() -> void:
+	# Let the runner mesh upload to the GPU before loading tree/rock GLBs.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_load_nature()
 
 
 func _load_nature() -> void:

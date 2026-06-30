@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-const PLAYER_MODEL: String = "res://models/anime-girl/anime-girl.glb"
+const PLAYER_MODEL: PackedScene = preload("res://models/anime-girl/anime-girl.glb")
 const COIN_SFX: AudioStream = preload("res://sounds/coinpickup.wav")
 
 @onready var audio_player: AudioStreamPlayer = $CoinSFX
@@ -36,6 +36,7 @@ var coin_count: int = 0
 var coin_label: Label
 var _name_label: Label
 var _best_label: Label
+var _back_btn: Button
 var overlay: Control
 var result_label: Label
 
@@ -50,6 +51,8 @@ var _start_overlay: Control
 var _start_btn: Button
 var _countdown_label: Label
 var _countdown_running: bool = false
+var _run_aborted: bool = false
+var _hud_layer: CanvasLayer
 
 const FINISH_WAIT_SEC: float = 22.0
 
@@ -85,12 +88,20 @@ func _ready() -> void:
 		if audio_player.stream == null:
 			audio_player.stream = COIN_SFX
 		BrowserBridge.configure_audio_player(audio_player)
+	if not get_viewport().size_changed.is_connected(_layout_hud_panels):
+		get_viewport().size_changed.connect(_layout_hud_panels)
 	call_deferred("_layout_hud_panels")
 	_refresh_coin_hud()
 
+
+func _exit_tree() -> void:
+	var vp := get_viewport()
+	if vp and vp.size_changed.is_connected(_layout_hud_panels):
+		vp.size_changed.disconnect(_layout_hud_panels)
+
 # Load model and wire AnimationPlayer (names matched from the rig at runtime).
 func _spawn_character() -> void:
-	var model := (load(PLAYER_MODEL) as PackedScene).instantiate()
+	var model := PLAYER_MODEL.instantiate()
 	model.name = "player"
 	var s: float = 0.85
 	model.transform = Transform3D(Basis(Vector3.UP, PI).scaled(Vector3(s, s, s)), Vector3.ZERO)
@@ -124,23 +135,25 @@ func _matte_meshes(node: Node) -> void:
 
 
 func _setup_hud() -> void:
-	var layer := CanvasLayer.new()
-	layer.layer = 100
-	layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(layer)
+	_hud_layer = CanvasLayer.new()
+	_hud_layer.layer = 100
+	_hud_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_hud_layer)
 
-	# Top bar — text only, no background panels.
-	_name_label = _make_hud_label(layer, HORIZONTAL_ALIGNMENT_LEFT, Color(0.9, 0.95, 1.0))
-	coin_label = _make_hud_label(layer, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.96, 0.78))
+	# Top bar — menu on row 1 left; username row 2 left; best + coins stacked right.
+	_name_label = _make_hud_label(_hud_layer, HORIZONTAL_ALIGNMENT_LEFT, Color(0.9, 0.95, 1.0))
+	_name_label.add_theme_font_size_override("font_size", BrowserBridge.hud_hint_font() + 2)
+	coin_label = _make_hud_label(_hud_layer, HORIZONTAL_ALIGNMENT_RIGHT, Color(1, 0.96, 0.78))
 	coin_label.add_theme_font_size_override("font_size", BrowserBridge.hud_font() + 2)
 	coin_label.text = "0"
-	_best_label = _make_hud_label(layer, HORIZONTAL_ALIGNMENT_RIGHT, Color(1, 0.88, 0.42))
+	_best_label = _make_hud_label(_hud_layer, HORIZONTAL_ALIGNMENT_RIGHT, Color(1, 0.88, 0.42))
+	_best_label.add_theme_font_size_override("font_size", BrowserBridge.hud_hint_font() + 2)
 
-	_layout_hud_panels()
+	_setup_back_button(_hud_layer)
 
 	# ---- full-screen game-over overlay (dim + centered card) ----
 	overlay = Control.new()
-	layer.add_child(overlay)
+	_hud_layer.add_child(overlay)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.visible = false
@@ -209,7 +222,34 @@ func _setup_hud() -> void:
 	_menu_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.12, 0.14, 0.2)))
 	_menu_btn.pressed.connect(_go_menu)
 
-	_setup_start_prompt(layer)
+	_setup_start_prompt(_hud_layer)
+	call_deferred("_layout_hud_panels")
+
+
+func _setup_back_button(layer: CanvasLayer) -> void:
+	_back_btn = Button.new()
+	layer.add_child(_back_btn)
+	_back_btn.text = ""
+	_back_btn.icon = _make_back_icon()
+	_back_btn.expand_icon = true
+	_back_btn.add_theme_constant_override("icon_max_width", 24)
+	_back_btn.add_theme_stylebox_override("normal", _pill_style(Color(0.1, 0.12, 0.18, 0.88)))
+	_back_btn.add_theme_stylebox_override("hover", _pill_style(Color(0.14, 0.16, 0.24, 0.92)))
+	_back_btn.add_theme_stylebox_override("pressed", _pill_style(Color(0.08, 0.1, 0.15, 0.95)))
+	_back_btn.pressed.connect(_on_back_pressed)
+
+
+func _on_back_pressed() -> void:
+	_run_aborted = true
+	_countdown_running = false
+	if game_over:
+		_go_menu()
+		return
+	RunSession.run_active = false
+	var level := get_tree().get_first_node_in_group("level")
+	if level and level.has_method("freeze_world"):
+		level.freeze_world()
+	_go_menu()
 
 
 func _setup_start_prompt(layer: CanvasLayer) -> void:
@@ -270,6 +310,7 @@ func _enter_attract_mode() -> void:
 	if _countdown_label:
 		_countdown_label.visible = false
 	_countdown_running = false
+	_run_aborted = false
 	var idle_anim: String = dance_anim if dance_anim != "" else run_anim
 	_play_anim(idle_anim, true)
 
@@ -286,7 +327,7 @@ func _on_start_pressed() -> void:
 		_start_btn.disabled = true
 		_start_btn.visible = false
 	await _run_start_countdown()
-	if game_over or is_dead:
+	if _run_aborted or game_over or is_dead:
 		_countdown_running = false
 		return
 	game_started = true
@@ -302,10 +343,13 @@ func _run_start_countdown() -> void:
 	_countdown_label.visible = true
 	var steps: PackedStringArray = PackedStringArray(["3", "2", "1", "GO!"])
 	for i in steps.size():
+		if _run_aborted or not is_inside_tree():
+			break
 		_countdown_label.text = steps[i]
 		var wait_sec: float = 0.65 if steps[i] == "GO!" else 0.85
 		await get_tree().create_timer(wait_sec).timeout
-	_countdown_label.visible = false
+	if _countdown_label and is_inside_tree():
+		_countdown_label.visible = false
 
 
 func _make_hud_label(parent: Node, align: HorizontalAlignment, color: Color) -> Label:
@@ -324,24 +368,39 @@ func _make_hud_label(parent: Node, align: HorizontalAlignment, color: Color) -> 
 
 
 func _layout_hud_panels() -> void:
+	if not is_inside_tree():
+		return
 	var width := get_viewport().get_visible_rect().size.x
 	if width <= 0.0:
 		width = float(get_viewport().size.x)
 	if width <= 0.0:
 		width = 720.0
-	var top := 18.0
-	var height := 44.0
-	var side_w := 220.0
-	var coin_w := 120.0
+
+	var side := BrowserBridge.popup_edge_margin()
+	var top := 12.0
+	var menu_size := 40.0
+	var row_h := 34.0
+	var row_gap := 6.0
+	var right_w := clampf(width * 0.3, 96.0, 156.0)
+	var right_x := maxf(side + menu_size + 8.0, width - right_w - side)
+
+	if _back_btn:
+		_back_btn.position = Vector2(side, top)
+		_back_btn.size = Vector2(menu_size, menu_size)
+
+	var name_top := top + menu_size + row_gap
+	var name_w := maxf(72.0, right_x - side - 6.0)
 	if _name_label:
-		_name_label.position = Vector2(18.0, top)
-		_name_label.size = Vector2(side_w, height)
-	if coin_label:
-		coin_label.position = Vector2((width - coin_w) * 0.5, top)
-		coin_label.size = Vector2(coin_w, height)
+		_name_label.position = Vector2(side, name_top)
+		_name_label.size = Vector2(name_w, row_h + 4.0)
+
 	if _best_label:
-		_best_label.position = Vector2(width - side_w - 18.0, top)
-		_best_label.size = Vector2(side_w, height)
+		_best_label.position = Vector2(right_x, top)
+		_best_label.size = Vector2(width - right_x - side, row_h)
+
+	if coin_label:
+		coin_label.position = Vector2(right_x, top + row_h + 3.0)
+		coin_label.size = Vector2(width - right_x - side, row_h + 2.0)
 
 
 func _refresh_coin_hud() -> void:
@@ -413,6 +472,34 @@ func _pill_style(c: Color) -> StyleBoxFlat:
 	sb.bg_color = c
 	sb.set_corner_radius_all(32)
 	return sb
+
+
+func _make_back_icon() -> ImageTexture:
+	var px := 32
+	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var color := Color(0.92, 0.95, 1.0)
+	_stamp_line(img, Vector2i(21, 7), Vector2i(9, 16), color, 2)
+	_stamp_line(img, Vector2i(9, 16), Vector2i(21, 25), color, 2)
+	return ImageTexture.create_from_image(img)
+
+
+func _stamp_line(img: Image, from: Vector2i, to: Vector2i, color: Color, half: int) -> void:
+	var d := to - from
+	var steps := maxi(maxi(absi(d.x), absi(d.y)), 1)
+	for i in steps + 1:
+		var t := float(i) / float(steps)
+		var p := Vector2i(
+			int(round(lerpf(float(from.x), float(to.x), t))),
+			int(round(lerpf(float(from.y), float(to.y), t)))
+		)
+		for oy in range(-half, half + 1):
+			for ox in range(-half, half + 1):
+				var x := p.x + ox
+				var y := p.y + oy
+				if x < 0 or y < 0 or x >= img.get_width() or y >= img.get_height():
+					continue
+				img.set_pixel(x, y, color)
 
 func _bind_anims() -> void:
 	if anim_player == null:
@@ -520,9 +607,6 @@ func _physics_process(delta: float) -> void:
 
 	if not game_started:
 		return
-
-	# coins-only score — distance does not count
-	_refresh_coin_hud()
 
 	# keyboard fallback so it's also playable on desktop
 	if Input.is_action_just_pressed("move_left"):
