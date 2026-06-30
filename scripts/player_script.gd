@@ -376,31 +376,33 @@ func _layout_hud_panels() -> void:
 	if width <= 0.0:
 		width = 720.0
 
-	var side := BrowserBridge.popup_edge_margin()
-	var top := 12.0
+	var pad_left := maxf(BrowserBridge.popup_edge_margin() + 8.0, 18.0)
+	var pad_right := maxf(BrowserBridge.popup_edge_margin() + 8.0, 18.0)
+	var pad_top := 16.0
 	var menu_size := 40.0
 	var row_h := 34.0
 	var row_gap := 6.0
+	var col_gap := 10.0
 	var right_w := clampf(width * 0.3, 96.0, 156.0)
-	var right_x := maxf(side + menu_size + 8.0, width - right_w - side)
+	var right_x := width - pad_right - right_w
 
 	if _back_btn:
-		_back_btn.position = Vector2(side, top)
+		_back_btn.position = Vector2(pad_left, pad_top)
 		_back_btn.size = Vector2(menu_size, menu_size)
 
-	var name_top := top + menu_size + row_gap
-	var name_w := maxf(72.0, right_x - side - 6.0)
+	var name_top := pad_top + menu_size + row_gap
+	var name_w := maxf(72.0, right_x - pad_left - col_gap)
 	if _name_label:
-		_name_label.position = Vector2(side, name_top)
+		_name_label.position = Vector2(pad_left, name_top)
 		_name_label.size = Vector2(name_w, row_h + 4.0)
 
 	if _best_label:
-		_best_label.position = Vector2(right_x, top)
-		_best_label.size = Vector2(width - right_x - side, row_h)
+		_best_label.position = Vector2(right_x, pad_top)
+		_best_label.size = Vector2(right_w, row_h)
 
 	if coin_label:
-		coin_label.position = Vector2(right_x, top + row_h + 3.0)
-		coin_label.size = Vector2(width - right_x - side, row_h + 2.0)
+		coin_label.position = Vector2(right_x, pad_top + row_h + 4.0)
+		coin_label.size = Vector2(right_w, row_h + 2.0)
 
 
 func _refresh_coin_hud() -> void:
