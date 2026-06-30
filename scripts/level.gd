@@ -79,26 +79,36 @@ var _bgm_player: AudioStreamPlayer
 
 func _ready():
 	add_to_group("level")
-	call_deferred("_load_nature_deferred")
-	_setup_road_segments()
-	_setup_fences()
-	_setup_signs()
-
-	if SimConstants.SECURE_SPAWNS:
-		spawn_timer.stop()
-		spawn_obstacle_timer.stop()
-		randomize()
-		if not RunSession.checkpoint_resolved.is_connected(_on_checkpoint_resolved):
-			RunSession.checkpoint_resolved.connect(_on_checkpoint_resolved)
-		call_deferred("_boot_secure_segment")
-	else:
-		randomize()
-
+	spawn_env_timer.stop()
 	_setup_bgm()
 	if not BrowserBridge.page_backgrounded.is_connected(_on_page_background):
 		BrowserBridge.page_backgrounded.connect(_on_page_background)
 	if not BrowserBridge.page_foregrounded.is_connected(_on_page_foreground):
 		BrowserBridge.page_foregrounded.connect(_on_page_foreground)
+	randomize()
+	if SimConstants.SECURE_SPAWNS:
+		spawn_timer.stop()
+		spawn_obstacle_timer.stop()
+		if not RunSession.checkpoint_resolved.is_connected(_on_checkpoint_resolved):
+			RunSession.checkpoint_resolved.connect(_on_checkpoint_resolved)
+	call_deferred("_deferred_level_boot")
+
+
+func _deferred_level_boot() -> void:
+	if player and player.has_method("wait_for_character"):
+		await player.wait_for_character()
+	else:
+		await get_tree().process_frame
+		await get_tree().process_frame
+	_setup_road_segments()
+	_setup_fences()
+	_setup_signs()
+	if SimConstants.SECURE_SPAWNS:
+		call_deferred("_boot_secure_segment")
+	for _i in 3:
+		await get_tree().process_frame
+	_load_nature()
+	spawn_env_timer.start()
 
 
 func _setup_fences() -> void:
@@ -687,13 +697,6 @@ func _add_concert_sign(root: Node3D, title: String, date_line: String, rot_y: fl
 	date_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	date_label.position = Vector3(0.0, 3.28, 0.1)
 	root.add_child(date_label)
-
-
-func _load_nature_deferred() -> void:
-	# Let the runner mesh upload to the GPU before loading tree/rock GLBs.
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_load_nature()
 
 
 func _load_nature() -> void:

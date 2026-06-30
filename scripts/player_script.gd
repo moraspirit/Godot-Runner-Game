@@ -1,5 +1,7 @@
 extends CharacterBody3D
 
+signal character_ready
+
 const PLAYER_MODEL: PackedScene = preload("res://models/anime-girl/anime-girl.glb")
 const COIN_SFX: AudioStream = preload("res://sounds/coinpickup.wav")
 
@@ -53,6 +55,8 @@ var _countdown_label: Label
 var _countdown_running: bool = false
 var _run_aborted: bool = false
 var _hud_layer: CanvasLayer
+var _character_model: Node3D
+var _character_ready: bool = false
 
 const FINISH_WAIT_SEC: float = 22.0
 
@@ -66,13 +70,25 @@ func _ready() -> void:
 
 	# rocks look for an area in this group to know they hit the player
 	$collision_area.add_to_group("player_skeleton")
+	call_deferred("_init_player")
 
-	_spawn_character()
-	_setup_hud()
 
+func is_character_ready() -> bool:
+	return _character_ready
+
+
+func wait_for_character() -> void:
+	if _character_ready:
+		return
+	await character_ready
+
+
+func _init_player() -> void:
+	await _ensure_character()
 	ground_y = global_transform.origin.y
 	_bind_anims()
 	_enter_attract_mode()
+	_setup_hud()
 	if not RunSession.checkpoint_resolved.is_connected(_on_checkpoint_resolved):
 		RunSession.checkpoint_resolved.connect(_on_checkpoint_resolved)
 	if not RunSession.finish_resolved.is_connected(_on_finish_resolved):
@@ -99,15 +115,74 @@ func _exit_tree() -> void:
 	if vp and vp.size_changed.is_connected(_layout_hud_panels):
 		vp.size_changed.disconnect(_layout_hud_panels)
 
-# Load model and wire AnimationPlayer (names matched from the rig at runtime).
-func _spawn_character() -> void:
-	var model := PLAYER_MODEL.instantiate()
-	model.name = "player"
+# Wire the runner mesh (scene instance + retry if GPU upload fails on web).
+func _ensure_character() -> void:
+	_character_model = get_node_or_null("player") as Node3D
+	if _character_model == null:
+		_spawn_character_node()
+	else:
+		_apply_character_transform(_character_model)
+
+	for _attempt in 8:
+		if _character_model == null:
+			_spawn_character_node()
+		if _count_render_meshes(_character_model) > 0:
+			_wire_animation_player()
+			_matte_meshes(_character_model)
+			_character_model.visible = true
+			_mark_character_ready()
+			return
+		await get_tree().process_frame
+
+	if _character_model:
+		_character_model.queue_free()
+		_character_model = null
+		await get_tree().process_frame
+	_spawn_character_node()
+	_wire_animation_player()
+	_matte_meshes(_character_model)
+	if _character_model:
+		_character_model.visible = true
+	_mark_character_ready()
+
+
+func _mark_character_ready() -> void:
+	if _character_ready:
+		return
+	_character_ready = true
+	character_ready.emit()
+
+
+func _spawn_character_node() -> void:
+	_character_model = PLAYER_MODEL.instantiate()
+	_character_model.name = "player"
+	add_child(_character_model)
+	move_child(_character_model, 0)
+	_apply_character_transform(_character_model)
+
+
+func _apply_character_transform(model: Node3D) -> void:
 	var s: float = 0.85
 	model.transform = Transform3D(Basis(Vector3.UP, PI).scaled(Vector3(s, s, s)), Vector3.ZERO)
-	add_child(model)
-	anim_player = model.get_node("AnimationPlayer")
-	_matte_meshes(model)
+
+
+func _wire_animation_player() -> void:
+	if _character_model == null:
+		return
+	anim_player = _character_model.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if anim_player == null:
+		anim_player = _character_model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+
+
+func _count_render_meshes(node: Node) -> int:
+	var count := 0
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if mi.mesh != null:
+			count += 1
+	for child in node.get_children():
+		count += _count_render_meshes(child)
+	return count
 
 
 func _matte_meshes(node: Node) -> void:
@@ -376,13 +451,13 @@ func _layout_hud_panels() -> void:
 	if width <= 0.0:
 		width = 720.0
 
-	var pad_left := maxf(BrowserBridge.popup_edge_margin() + 8.0, 18.0)
-	var pad_right := maxf(BrowserBridge.popup_edge_margin() + 8.0, 18.0)
-	var pad_top := 16.0
-	var menu_size := 40.0
+	var pad_left := maxf(BrowserBridge.popup_edge_margin() + 16.0, 28.0)
+	var pad_right := maxf(BrowserBridge.popup_edge_margin() + 16.0, 28.0)
+	var pad_top := 24.0
+	var menu_size := 44.0
 	var row_h := 34.0
-	var row_gap := 6.0
-	var col_gap := 10.0
+	var row_gap := 10.0
+	var col_gap := 16.0
 	var right_w := clampf(width * 0.3, 96.0, 156.0)
 	var right_x := width - pad_right - right_w
 
