@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://vrafx82uhf8p"
-path.s3tc="res://.godot/imported/Bushes_Bush_Leaves.png-74fadf0412f5b7e74ee322a4932ea56e.s3tc.ctex"
+uid="uid://drcinpxh8s41p"
+path.s3tc="res://.godot/imported/tree2_forest_texture.png-d14017c22596a9721c8e62d189f64e25.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "9cd30b574ee4effdc19cf9575cbae54f"
+"md5": "6f92bcdea27804b5dea8237b30198816"
 }
 
 [deps]
 
-source_file="res://models/nature/Bushes_Bush_Leaves.png"
-dest_files=["res://.godot/imported/Bushes_Bush_Leaves.png-74fadf0412f5b7e74ee322a4932ea56e.s3tc.ctex"]
+source_file="res://models/nature/tree2_forest_texture.png"
+dest_files=["res://.godot/imported/tree2_forest_texture.png-d14017c22596a9721c8e62d189f64e25.s3tc.ctex"]
 
 [params]
 

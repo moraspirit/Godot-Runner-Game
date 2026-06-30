@@ -59,10 +59,6 @@ slide={
 ]
 }
 
-[audio]
-
-general/default_playback_type.web=1
-
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

@@ -13,11 +13,13 @@ extends Node
 @onready var env_move_script = preload("res://scripts/env_script.gd")
 
 const NATURE_TREES: Array = [
-	"res://models/nature/PineTrees.glb",
-	"res://models/nature/Trees.glb",
+	"res://models/nature/tree1.glb",
+	"res://models/nature/tree2.glb",
+	"res://models/nature/tree3.glb",
 ]
 const NATURE_ROCKS: Array = [
-	"res://models/nature/Rocks.glb",
+	"res://models/nature/rock1.glb",
+	"res://models/nature/rock2.glb",
 ]
 
 var tree_templates: Array = []
@@ -40,8 +42,8 @@ var fences: Array = []
 var _fence_loop_len: float = FENCE_SPACING * FENCE_COUNT
 var _fence_count: int = FENCE_COUNT
 
-const ENV_TREE_X_MIN: float = 4.5
-const ENV_TREE_X_MAX: float = 7.0
+const ENV_TREE_X_MIN: float = 8.0
+const ENV_TREE_X_MAX: float = 13.0
 
 # scrolling road strips
 const ROAD_SEGMENT_LEN: float = 5.0
@@ -259,8 +261,7 @@ func _spawn_seeded_rock(entry: Dictionary) -> void:
 	add_child(mover)
 	mover.global_transform.origin = Vector3(road_spawnx[int(entry.lane)], 0.0, startz)
 	mover.rotation.y = rng.randf() * TAU
-	var rs: float = rng.randf_range(0.85, 1.1)
-	mover.scale = Vector3(rs, rs * 0.52, rs)
+	mover.scale = _rock_scale_for_template(rock_templates[idx], rng)
 
 
 func _lane_index_from_x(x: float) -> int:
@@ -691,10 +692,17 @@ func _add_concert_sign(root: Node3D, title: String, date_line: String, rot_y: fl
 func _load_nature() -> void:
 	_collect(NATURE_TREES, tree_templates)
 	_collect(NATURE_ROCKS, rock_templates)
-	# medium-sized rocks — visible on the road but still jumpable
-	rock_templates = rock_templates.filter(func(t: MeshInstance3D) -> bool:
-		return t.get_meta("height", 99.0) <= 1.25
-	)
+
+
+func _rock_scale_for_template(tpl: MeshInstance3D, rng: SeededRng = null) -> Vector3:
+	var h: float = maxf(float(tpl.get_meta("height", 1.0)), 0.01)
+	var target_h: float
+	if rng:
+		target_h = rng.randf_range(0.82, 1.05)
+	else:
+		target_h = randf_range(0.82, 1.05)
+	var s: float = target_h / h
+	return Vector3(s, s, s)
 
 
 func _collect(paths: Array, into: Array) -> void:
@@ -757,7 +765,9 @@ func _on_spawn_env_timer_timeout():
 		return
 	var side: int = 1 if randf() < 0.5 else -1
 	_spawn_tree(side)
-	spawn_env_timer.wait_time = randf_range(1.5, 2.5)
+	if randf() < 0.3:
+		_spawn_tree(-side)
+	spawn_env_timer.wait_time = randf_range(1.25, 2.1)
 
 
 func _spawn_tree(dir: int) -> void:
@@ -770,7 +780,7 @@ func _spawn_tree(dir: int) -> void:
 
 	var mover := _make_mover(tree_templates[idx])
 	add_child(mover)
-	var s: float = randf_range(0.85, 1.5)
+	var s: float = randf_range(0.8, 1.2)
 	mover.global_transform.origin = Vector3(
 		dir * randf_range(ENV_TREE_X_MIN, ENV_TREE_X_MAX),
 		0.0,
@@ -804,8 +814,7 @@ func _spawn_rock(lane_idx: int) -> void:
 	add_child(mover)
 	mover.global_transform.origin = Vector3(road_spawnx[lane_idx], 0.0, startz)
 	mover.rotation.y = randf() * TAU
-	var rs: float = randf_range(0.85, 1.1)
-	mover.scale = Vector3(rs, rs * 0.52, rs)
+	mover.scale = _rock_scale_for_template(rock_templates[idx])
 
 
 const HIT_Z: float = 0.9

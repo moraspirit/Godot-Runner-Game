@@ -28,7 +28,6 @@ shape = SubResource("1")
 [node name="CoinSFX" type="AudioStreamPlayer" parent="." unique_id=823140027]
 stream = ExtResource("3")
 volume_db = -4.0
-max_distance = 40.0
 
 [node name="DeathSFX" type="AudioStreamPlayer" parent="." unique_id=1847293016]
 stream = ExtResource("4")

@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cb52avv4msiv0"
-path.s3tc="res://.godot/imported/PineTrees_PineTree_Leaves.png-5eb74dd1b5cf217083839d1160514a14.s3tc.ctex"
+uid="uid://bkrpd1i0sfplk"
+path.s3tc="res://.godot/imported/rock1_forest_texture.png-ac5d589a40347d8ac021d6ca73cc7eef.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "1fcde70607c3733f101d8d860b9944db"
+"md5": "6f92bcdea27804b5dea8237b30198816"
 }
 
 [deps]
 
-source_file="res://models/nature/PineTrees_PineTree_Leaves.png"
-dest_files=["res://.godot/imported/PineTrees_PineTree_Leaves.png-5eb74dd1b5cf217083839d1160514a14.s3tc.ctex"]
+source_file="res://models/nature/rock1_forest_texture.png"
+dest_files=["res://.godot/imported/rock1_forest_texture.png-ac5d589a40347d8ac021d6ca73cc7eef.s3tc.ctex"]
 
 [params]
 
