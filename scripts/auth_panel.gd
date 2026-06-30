@@ -7,7 +7,6 @@ var _panel: PanelContainer
 var _title: Label
 var _index_field: LineEdit
 var _name_field: LineEdit
-var _phone_field: LineEdit
 var _status: Label
 var _submit_btn: Button
 var _toggle_btn: Button
@@ -81,8 +80,7 @@ func _build_ui() -> void:
 	_title.add_theme_color_override("font_color", Color(1, 0.88, 0.35))
 
 	_index_field = _field(box, "Index number", LineEdit.KEYBOARD_TYPE_DEFAULT)
-	_name_field = _field(box, "Name (leaderboard)", LineEdit.KEYBOARD_TYPE_DEFAULT)
-	_phone_field = _field(box, "Phone number", LineEdit.KEYBOARD_TYPE_PHONE)
+	_name_field = _field(box, "Username", LineEdit.KEYBOARD_TYPE_DEFAULT)
 
 	_status = Label.new()
 	box.add_child(_status)
@@ -147,7 +145,7 @@ func _on_close_pressed() -> void:
 
 func _close() -> void:
 	BrowserBridge.dismiss_virtual_keyboard()
-	for field in [_index_field, _name_field, _phone_field]:
+	for field in [_index_field, _name_field]:
 		if field:
 			field.release_focus()
 	visible = false
@@ -167,9 +165,9 @@ func _run_submit() -> void:
 		return
 
 	var index_num := _index_field.text.strip_edges()
-	var phone := _phone_field.text.strip_edges()
-	if index_num == "" or phone == "":
-		_show_status("Index number and phone are required.")
+	var username := _name_field.text.strip_edges()
+	if index_num == "" or username == "":
+		_show_status("Index number and username are required.")
 		return
 
 	_busy = true
@@ -178,30 +176,19 @@ func _run_submit() -> void:
 	_close_btn.disabled = true
 	_show_status("Please wait…")
 
+	var payload := {
+		"index_number": index_num,
+		"name": username,
+	}
 	if _mode == "login":
-		ApiClient.post_unsigned("/v1/auth/login", {
-			"index_number": index_num,
-			"phone_number": phone,
-		})
+		ApiClient.post_unsigned("/v1/auth/login", payload)
 	else:
-		var display_name := _name_field.text.strip_edges()
-		if display_name == "":
-			_show_status("Name is required for registration.")
-			_busy = false
-			_submit_btn.disabled = false
-			_toggle_btn.disabled = false
-			_close_btn.disabled = false
-			return
-		ApiClient.post_unsigned("/v1/auth/register", {
-			"index_number": index_num,
-			"name": display_name,
-			"phone_number": phone,
-		})
+		ApiClient.post_unsigned("/v1/auth/register", payload)
 
 
 func _sync_fields_from_keyboard() -> void:
 	BrowserBridge.dismiss_virtual_keyboard()
-	for field in [_index_field, _name_field, _phone_field]:
+	for field in [_index_field, _name_field]:
 		if field and field.has_focus():
 			field.release_focus()
 	await get_tree().process_frame
@@ -236,9 +223,7 @@ func _set_mode(mode: String) -> void:
 	_mode = mode
 	var is_login := mode == "login"
 	_title.text = "Login" if is_login else "Register"
-	_name_field.visible = not is_login
-	_name_field.placeholder_text = "Name (leaderboard)" if not is_login else ""
-	_phone_field.placeholder_text = "Phone number"
+	_name_field.placeholder_text = "Username"
 	_submit_btn.text = "LOGIN" if is_login else "REGISTER"
 	_submit_btn.add_theme_stylebox_override("normal", _pill(Color(0.16, 0.72, 0.4) if is_login else Color(0.22, 0.38, 0.72)))
 	_toggle_btn.text = "Need an account? Register" if is_login else "Already registered? Login"
@@ -271,9 +256,9 @@ func _format_auth_error(err: String, status: int) -> String:
 		"index_number_already_registered":
 			return "That index number is already registered."
 		"username_already_registered":
-			return "That name is already taken — choose another."
+			return "That username is already taken — choose another."
 		"invalid_credentials":
-			return "Index number or phone number is incorrect."
+			return "Index number or username is incorrect."
 		"connection_failed", "timeout", "request_failed":
 			return "Cannot reach server. Check your connection and try again."
 	return "%s (%d)" % [err, status]
