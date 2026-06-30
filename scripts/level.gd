@@ -126,7 +126,7 @@ func _setup_bgm() -> void:
 	_bgm_player = AudioStreamPlayer.new()
 	_bgm_player.name = "BackgroundMusic"
 	_bgm_player.stream = BGM
-	_bgm_player.volume_db = -10.0
+	_bgm_player.volume_db = -2.0
 	_bgm_player.add_to_group("web_audio")
 	BrowserBridge.configure_audio_player(_bgm_player, true)
 	add_child(_bgm_player)

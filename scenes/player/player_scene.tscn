@@ -31,10 +31,10 @@ shape = SubResource("1")
 
 [node name="CoinSFX" type="AudioStreamPlayer" parent="." unique_id=823140027]
 stream = ExtResource("3")
-volume_db = -4.0
+volume_db = 2.0
 
 [node name="DeathSFX" type="AudioStreamPlayer" parent="." unique_id=1847293016]
 stream = ExtResource("4")
-volume_db = -2.0
+volume_db = 4.0
 
 [connection signal="area_entered" from="collision_area" to="." method="_on_collision_area_entered"]

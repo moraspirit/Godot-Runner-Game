@@ -13,8 +13,15 @@ func _ready() -> void:
 	apply_sound()
 
 
+const MASTER_VOLUME_DB: float = 6.0
+
+
 func apply_sound() -> void:
 	AudioServer.set_bus_mute(0, not sound_enabled)
+	if sound_enabled:
+		AudioServer.set_bus_volume_db(0, MASTER_VOLUME_DB)
+	else:
+		AudioServer.set_bus_volume_db(0, 0.0)
 
 
 func toggle_sound() -> void:
