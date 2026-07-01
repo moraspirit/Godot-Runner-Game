@@ -1,12 +1,12 @@
 extends Node
 
-const SIM_VERSION: int = 9
+const SIM_VERSION: int = 10
 const CLIENT_BUILD: String = "dev"
 
 const NUM_LANES: int = 3
 const LANE_X: Array = [-2.0, 0.0, 2.0]
 
-const SEGMENT_LENGTH: float = 10000.0
+const SEGMENT_LENGTH: float = 25000.0
 const CHUNK_LENGTH: float = 200.0
 
 const SCROLL_SPEED: float = 15.0
@@ -89,3 +89,24 @@ static func distance_at_duration_ms(duration_ms: int) -> float:
 		dist += scroll_speed_at_sec(float(i) * SPEED_RAMP_INTERVAL_SEC) * SPEED_RAMP_INTERVAL_SEC
 	dist += scroll_speed_at_sec(float(tier) * SPEED_RAMP_INTERVAL_SEC) * rem
 	return dist
+
+
+static func duration_ms_for_distance_from_start(distance: float, start_elapsed_sec: float) -> float:
+	if distance <= 0.0:
+		return 0.0
+	var remaining: float = distance
+	var elapsed: float = maxf(0.0, start_elapsed_sec)
+	var ms: float = 0.0
+	while remaining > 0.0:
+		var speed: float = scroll_speed_at_sec(elapsed)
+		var tier: int = int(floor(elapsed / SPEED_RAMP_INTERVAL_SEC))
+		var tier_end: float = float(tier + 1) * SPEED_RAMP_INTERVAL_SEC
+		var time_left_in_tier: float = tier_end - elapsed
+		var dist_in_tier: float = speed * time_left_in_tier
+		if remaining <= dist_in_tier:
+			ms += (remaining / speed) * 1000.0
+			return ms
+		remaining -= dist_in_tier
+		ms += time_left_in_tier * 1000.0
+		elapsed = tier_end
+	return ms

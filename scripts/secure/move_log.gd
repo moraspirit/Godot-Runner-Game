@@ -77,4 +77,5 @@ func to_dict(end_reason: String, final_distance: float) -> Dictionary:
 		"end_reason": end_reason,
 		"final_distance": final_distance,
 		"client_duration_ms": segment_elapsed_ms(),
+		"run_elapsed_ms": RunSession.run_scroll_elapsed_ms(),
 	}

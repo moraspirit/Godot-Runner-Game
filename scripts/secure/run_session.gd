@@ -13,6 +13,7 @@ var run_total_coins: int = 0
 var offline_mode: bool = true
 var run_active: bool = false
 var run_scroll_start_ms: int = -1
+var _run_scroll_peak_sec: float = 0.0
 
 var _waiting_checkpoint: bool = false
 
@@ -33,16 +34,24 @@ func is_online() -> bool:
 
 func mark_run_scroll_started() -> void:
 	run_scroll_start_ms = Time.get_ticks_msec()
+	_run_scroll_peak_sec = 0.0
 
 
 func run_scroll_elapsed_sec() -> float:
 	if run_scroll_start_ms < 0:
-		return 0.0
-	return float(Time.get_ticks_msec() - run_scroll_start_ms) / 1000.0
+		return _run_scroll_peak_sec
+	var t: float = float(Time.get_ticks_msec() - run_scroll_start_ms) / 1000.0
+	_run_scroll_peak_sec = maxf(_run_scroll_peak_sec, t)
+	return _run_scroll_peak_sec
+
+
+func run_scroll_elapsed_ms() -> int:
+	return int(round(run_scroll_elapsed_sec() * 1000.0))
 
 
 func _clear_run_scroll_clock() -> void:
 	run_scroll_start_ms = -1
+	_run_scroll_peak_sec = 0.0
 
 
 func prepare_run() -> void:
