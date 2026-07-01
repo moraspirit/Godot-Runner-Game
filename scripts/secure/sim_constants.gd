@@ -1,12 +1,12 @@
 extends Node
 
-const SIM_VERSION: int = 8
+const SIM_VERSION: int = 9
 const CLIENT_BUILD: String = "dev"
 
 const NUM_LANES: int = 3
 const LANE_X: Array = [-2.0, 0.0, 2.0]
 
-const SEGMENT_LENGTH: float = 2000.0
+const SEGMENT_LENGTH: float = 10000.0
 const CHUNK_LENGTH: float = 200.0
 
 const SCROLL_SPEED: float = 15.0

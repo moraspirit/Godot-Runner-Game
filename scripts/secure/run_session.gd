@@ -12,6 +12,7 @@ var current_seed: int = 0
 var run_total_coins: int = 0
 var offline_mode: bool = true
 var run_active: bool = false
+var run_scroll_start_ms: int = -1
 
 var _waiting_checkpoint: bool = false
 
@@ -28,6 +29,20 @@ func has_session() -> bool:
 
 func is_online() -> bool:
 	return not offline_mode and SimConstants.API_BASE != ""
+
+
+func mark_run_scroll_started() -> void:
+	run_scroll_start_ms = Time.get_ticks_msec()
+
+
+func run_scroll_elapsed_sec() -> float:
+	if run_scroll_start_ms < 0:
+		return 0.0
+	return float(Time.get_ticks_msec() - run_scroll_start_ms) / 1000.0
+
+
+func _clear_run_scroll_clock() -> void:
+	run_scroll_start_ms = -1
 
 
 func prepare_run() -> void:
@@ -61,6 +76,7 @@ func _reset_online_state() -> void:
 	segment_index = 0
 	run_total_coins = 0
 	_waiting_checkpoint = false
+	_clear_run_scroll_clock()
 
 
 func _start_offline_run(error_hint: String) -> void:
@@ -72,6 +88,7 @@ func _start_offline_run(error_hint: String) -> void:
 	current_seed = _random_segment_seed()
 	run_total_coins = 0
 	run_active = true
+	_clear_run_scroll_clock()
 	if error_hint != "":
 		_log("offline fallback: %s" % error_hint)
 	run_ready.emit(true, error_hint)
@@ -141,6 +158,7 @@ func submit_finish(final_distance: float, end_reason: String = "collision") -> v
 
 
 func apply_next_segment(initial_lane: int) -> void:
+	# Segment map/log reset only — never reset run_scroll_start_ms (speed keeps climbing).
 	MoveLog.reset(segment_index, current_seed, initial_lane)
 
 
@@ -167,6 +185,7 @@ func _on_api_response(path: String, success: bool, status: int, body: Dictionary
 			run_total_coins = 0
 			run_active = true
 			offline_mode = false
+			_clear_run_scroll_clock()
 			_log("run_id=%s seed=%d (online)" % [run_id, current_seed])
 			run_ready.emit(true, "")
 		else:

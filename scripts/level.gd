@@ -30,7 +30,6 @@ var _last_rock: int = -1
 
 const LANE_SCROLL_SPEED: float = SimConstants.SCROLL_SPEED
 var run_distance: float = 0.0
-var _run_elapsed_sec: float = 0.0
 
 var startz: float = -50.0
 var road_spawnx: Array = [-2, 0, 2]
@@ -144,7 +143,6 @@ func _on_page_foreground() -> void:
 
 
 func begin_run() -> void:
-	_run_elapsed_sec = 0.0
 	if not GameSettings.sound_enabled:
 		return
 	BrowserBridge.unlock_web_audio()
@@ -164,7 +162,7 @@ func get_segment_distance() -> float:
 
 
 func get_scroll_speed() -> float:
-	return SimConstants.scroll_speed_at_sec(_run_elapsed_sec)
+	return SimConstants.scroll_speed_at_sec(RunSession.run_scroll_elapsed_sec())
 
 
 func _game_stopped() -> bool:
@@ -211,6 +209,7 @@ func _halt_node(node: Node) -> void:
 
 
 func _init_secure_segment() -> void:
+	# New coin/rock map for this segment — scroll speed clock is unchanged.
 	_segment_spawns = SegmentMapGen.generate(RunSession.current_seed)
 	_next_spawn_idx = 0
 	_segment_start_distance = run_distance
@@ -836,7 +835,6 @@ func _process(delta: float) -> void:
 	if _game_stopped():
 		return
 	var speed: float = get_scroll_speed()
-	_run_elapsed_sec += delta
 	run_distance += speed * delta
 	_scroll_road_segments(delta, speed)
 	_scroll_fences(delta, speed)

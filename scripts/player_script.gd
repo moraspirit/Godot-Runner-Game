@@ -407,6 +407,7 @@ func _on_start_pressed() -> void:
 		return
 	game_started = true
 	_countdown_running = false
+	RunSession.mark_run_scroll_started()
 	if _start_overlay:
 		_start_overlay.visible = false
 	_play_anim(run_anim, true)
